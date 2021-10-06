@@ -1,0 +1,246 @@
+
+
+## Problem 4.1
+### a
+The log likelihood for complete data is
+$$
+\begin{aligned} \log f_{\mathbf{Y}}(\mathbf{y} \mid \mathbf{p})=& n_{\mathrm{CC}} \log \left\{p_{\mathrm{C}}^{2}\right\}+n_{\mathrm{CI}} \log \left\{2 p_{\mathrm{C}} p_{\mathrm{I}}\right\}+n_{\mathrm{CT}} \log \left\{2 p_{\mathrm{C}} p_{\mathrm{T}}\right\} \\ &+n_{\mathrm{II}} \log \left\{p_{\mathrm{I}}^{2}\right\}+n_{\mathrm{IT}} \log \left\{2 p_{\mathrm{I}} p_{\mathrm{T}}\right\}+n_{\mathrm{TT}} \log \left\{p_{\mathrm{T}}^{2}\right\} \\ &+\log \left(\begin{array}{ccccc}&&n & & \\ n_{\mathrm{CC}} & n_{\mathrm{CI}} & n_{\mathrm{CT}} & n_{\mathrm{II}} & n_{\mathrm{IT}} & n_{\mathrm{TT}}\end{array}\right) \end{aligned}
+$$
+Give the observed data $n_C, n_T, n_I, n_U$ and the t-step parameter $p^{(t)}_C, p^{(t)}_T, p^{(t)}_I, p^{(t)}_U$. The conditional expectation of missing data $N_{CC},N_{CI},\dots$ are
+$$
+\begin{array}{l}
+E\left\{N_{\mathrm{CC}} \mid n_{\mathrm{C}}, n_{\mathrm{I}}, n_{\mathrm{T}}, \mathbf{p}^{(t)}\right\}=n_{\mathrm{CC}}^{(t)}=\frac{n_{\mathrm{C}}\left(p_{\mathrm{C}}^{(t)}\right)^{2}}{\left(p_{\mathrm{C}}^{(t)}\right)^{2}+2 p_{\mathrm{C}}^{(t)} p_{\mathrm{I}}^{(t)}+2 p_{\mathrm{C}}^{(t)} p_{\mathrm{T}}^{(t)}} \\ 
+E\left\{N_{\mathrm{CI}} \mid n_{\mathrm{C}}, n_{\mathrm{I}}, n_{\mathrm{T}}, \mathbf{p}^{(t)}\right\}=n_{\mathrm{CI}}^{(t)}=\frac{2 n_{\mathrm{C}} p_{\mathrm{C}}^{(t)} p_{\mathrm{I}}^{(t)}}{\left(p_{\mathrm{C}}^{(t)}\right)^{2}+2 p_{\mathrm{C}}^{(t)} p_{\mathrm{I}}^{(t)}+2 p_{\mathrm{C}}^{(t)} p_{\mathrm{T}}^{(t)}} \\ 
+E\left\{N_{\mathrm{CT}} \mid n_{\mathrm{C}}, n_{\mathrm{I}}, n_{\mathrm{T}}, \mathbf{p}^{(t)}\right\}=n_{\mathrm{CT}}^{(t)}=\frac{2 n_{\mathrm{C}} p_{\mathrm{C}}^{(t)} p_{\mathrm{T}}^{(t)}}{\left(p_{\mathrm{C}}^{(t)}\right)^{2}+2 p_{\mathrm{C}}^{(t)} p_{\mathrm{I}}^{(t)}+2 p_{\mathrm{C}}^{(t)} p_{\mathrm{T}}^{(t)}} \\
+E\left\{N_{\mathrm{II}} \mid n_{\mathrm{C}}, n_{\mathrm{I}}, n_{\mathrm{T}}, \mathbf{p}^{(t)}\right\} = n_{\mathrm{II}}^{(t)} =\frac{n_{\mathrm{I}}\left(p_{\mathrm{I}}^{(t)}\right)^{2}}{\left(p_{\mathrm{I}}^{(t)}\right)^{2}+2 p_{\mathrm{I}}^{(t)} p_{\mathrm{T}}^{(t)}} +  \frac{n_{\mathrm{U}}\left(p_{\mathrm{I}}^{(t)}\right)^{2}}{\left(p_{\mathrm{I}}^{(t)}\right)^{2}+2 p_{\mathrm{I}}^{(t)} p_{\mathrm{T}}^{(t)}+\left(p_{\mathrm{T}}^{(t)}\right)^{2}}\\ 
+E\left\{N_{\mathrm{IT}} \mid n_{\mathrm{C}}, n_{\mathrm{I}}, n_{\mathrm{T}}, \mathbf{p}^{(t)}\right\} = n_{\mathrm{IT}}^{(t)} =\frac{2n_{\mathrm{I}} p_{\mathrm{I}}^{(t)} p_{\mathrm{T}}^{(t)}}{\left(p_{\mathrm{I}}^{(t)}\right)^{2}+2 p_{\mathrm{I}}^{(t)} p_{\mathrm{T}}^{(t)}} +  \frac{2n_{\mathrm{U}} p_{\mathrm{I}}^{(t)} p_{\mathrm{T}}^{(t)}}{\left(p_{\mathrm{I}}^{(t)}\right)^{2}+2 p_{\mathrm{I}}^{(t)} p_{\mathrm{T}}^{(t)}+\left(p_{\mathrm{T}}^{(t)}\right)^{2}} \\
+E\left\{N_{\mathrm{TT}} \mid n_{\mathrm{C}}, n_{\mathrm{I}}, n_{\mathrm{T}}, \mathbf{p}^{(t)}\right\} = n_{\mathrm{TT}}^{(t)} = n_{\mathrm{T}} + \frac{n_{\mathrm{U}}\left(p_{\mathrm{T}}^{(t)}\right)^{2}}{\left(p_{\mathrm{I}}^{(t)}\right)^{2}+2 p_{\mathrm{I}}^{(t)} p_{\mathrm{T}}^{(t)}+\left(p_{\mathrm{T}}^{(t)}\right)^{2}}
+\end{array}
+$$
+Then, take expectation w.r.t log likelihood function given observed data and t-step parameters,
+$$
+\begin{aligned} 
+Q(p|p^{(t)})=
+& n_{\mathrm{CC}}^{(t)} \log \left\{p_{\mathrm{C}}^{2}\right\}+n_{\mathrm{CI}}^{(t)} \log \left\{2 p_{\mathrm{C}} p_{\mathrm{I}}\right\}+n_{\mathrm{CT}}^{(t)} \log \left\{2 p_{\mathrm{C}} p_{\mathrm{T}}\right\} \\ &+n_{\mathrm{II}}^{(t)} \log \left\{p_{\mathrm{I}}^{2}\right\}+n_{\mathrm{IT}}^{(t)} \log \left\{2 p_{\mathrm{I}} p_{\mathrm{T}}\right\}+n_{\mathrm{TT}}^{(t)} \log \left\{p_{\mathrm{T}}^{2}\right\} \\ &+k(n_{\mathrm{T}},n_{\mathrm{C}},n_{\mathrm{I}},p^{(t)})
+\end{aligned}
+$$
+Then, maximize the parameters, we get the results which are
+$$
+\begin{array}{l}p_{\mathrm{C}}^{(t+1)}=\frac{2 n_{\mathrm{CC}}^{(t)}+n_{\mathrm{CI}}^{(t)}+n_{\mathrm{CT}}^{(t)}}{2 n} \\ p_{\mathrm{I}}^{(t+1)}=\frac{2 n_{\mathrm{II}}^{(t)}+n_{\mathrm{IT}}^{(t)}+n_{\mathrm{CI}}^{(t)}}{2 n} \\ p_{\mathrm{T}}^{(t+1)}=\frac{2 n_{\mathrm{TT}}^{(t)}+n_{\mathrm{CT}}^{(t)}+n_{\mathrm{IT}}^{(t)}}{2 n}\end{array}
+$$
+
+### b
+Apply the algorithm with R code,
+```{r}
+x = c(85, 196, 341, 578)
+expectation = function(p){
+  ncc = (x[1]*(p[1]^2))/((p[1]^2)+2*p[1]*p[2]+2*p[1]*p[3])
+  nci = (2*x[1]*p[1]*p[2])/((p[1]^2)+2*p[1]*p[2]+2*p[1]*p[3])
+  nct = (2*x[1]*p[1]*p[3])/((p[1]^2)+2*p[1]*p[2]+2*p[1]*p[3])
+  nii = (x[2]*(p[2]^2))/((p[2]^2)+2*p[2]*p[3])
+          +(x[4]*(p[2]^2))/((p[2]^2)+2*p[2]*p[3]+(p[3]^2))
+  nit = (2*x[2]*p[2]*p[3])/((p[2]^2)+2*p[2]*p[3])
+          +(2*x[4]*p[2]*p[3])/((p[2]^2)+2*p[2]*p[3]+(p[3]^2))
+  ntt = x[3]+(x[4]*(p[3]^2))/((p[2]^2)+2*p[2]*p[3]+(p[3]^2))
+  return(c(ncc,nci,nct,nii,nit,ntt))
+}
+maximize = function(n){
+  pc = (2*n[1]+n[2]+n[3])/(2*sum(x))
+  pi = (2*n[4]+n[5]+n[2])/(2*sum(x))
+  pt = (2*n[6]+n[3]+n[5])/(2*sum(x))
+  return(c(pc,pi,pt))
+}
+EM = function(p, max_iter = 100, epsilon = 0.00001){
+  p_iter = p
+  n = expectation(p_iter)
+  p_iter = maximize(n)
+  buffer_p = p_iter
+  for(step in 1:max_iter){
+    n = expectation(p_iter)
+    p_iter = maximize(n)
+    if(sum((p_iter-buffer_p)^2) < epsilon) break
+    else buffer_p = p_iter
+  }
+  return(p_iter)
+}
+EM(rep(1/3, 3))
+```
+The results are $\hat{p}_C=0.03613822, \hat{p}_I=0.08969797 ,\hat{p}_T=0.77979685$.
+
+## Problem 4.2
+### a
+With respect to the unobserved data, the log likelihood function is
+$$
+\begin{aligned}
+L & = n_{z, 0}\log{\alpha} + \sum_{i=0}^{16}n_{t, i}(\log(\beta\mu^i)-\mu) + \sum_{i=0}^{16}n_{p, i}(\log((1-\alpha-\beta)\lambda^i)-\lambda) + C
+\end{aligned}
+$$
+Then take expectation,
+$$
+\begin{aligned}
+Q(\theta|\theta^{(t)}) & 
+= n_{z, 0}^{(t)}\log{\alpha} + \sum_{i=0}^{16}n_{t, i}^{(t)}(\log(\beta\mu^i)-\mu) + \sum_{i=0}^{16}n_{p, i}^{(t)}(\log((1-\alpha-\beta)\lambda^i)-\lambda) + C
+\end{aligned}
+$$
+where 
+$$
+\begin{array}{l}
+n_{z, 0}^{(t)} = n_0 \frac{\alpha}{\pi_0(\theta^{(t)})} = n_0 z_0(\theta^{(t)}) \\
+n_{t, i}^{(t)} = n_i \frac{\beta\mu^i\exp(-\mu)}{\pi_i(\theta^{(t)})} = n_it_i(\theta^{(t)})\\
+n_{p, i}^{(t)} = n_i \frac{(1-\alpha-\beta)\lambda^i\exp(-\lambda)}{\pi_i(\theta^{(t)})} = n_ip_i(\theta^{(t)})\\
+\end{array}
+$$
+To maximize the Q function, take derivative w.r.t $\theta$,
+$$
+\begin{array}{l}
+\frac{\partial Q}{\partial \alpha} = \frac{n_{z, 0}^{(t)}}{\alpha}-\sum_{i=0}^{16}\frac{n_{p, i}^{(t)}}{1-\alpha-\beta} = 0 \\
+\frac{\partial Q}{\partial \beta} = \sum_{i=0}^{16}\frac{n_{t, i}^{(t)}}{\beta}-\sum_{i=0}^{16}\frac{n_{p, i}^{(t)}}{1-\alpha-\beta} = 0 \\
+\frac{\partial Q}{\partial \mu} = \sum_{i=0}^{16}n_{t, i}^{(t)}(\frac{i}{\mu}-\mu) = 0\\
+\frac{\partial Q}{\partial \lambda} = \sum_{i=0}^{16}n_{p, i}^{(t)}(\frac{i}{\lambda}-\lambda) = 0
+\end{array}
+$$
+Then,
+$$
+\begin{aligned} \alpha^{(t+1)} &=\frac{n_{0} z_{0}\left(\boldsymbol{\theta}^{(t)}\right)}{N} \\ \beta^{(t+1)} &=\sum_{i=0}^{16} \frac{n_{i} t_{i}\left(\theta^{(t)}\right)}{N} \\ \mu^{(t+1)} &=\frac{\sum_{i=0}^{16} i n_{i} t_{i}\left(\theta^{(t)}\right)}{\sum_{i=0}^{16} n_{i} t_{i}\left(\theta^{(t)}\right)} \\ \lambda^{(t+1)} &=\frac{\sum_{i=0}^{16} i n_{i} p_{i}\left(\theta^{(t)}\right)}{\sum_{i=0}^{16} n_{i} p_{i}\left(\theta^{(t)}\right)} \end{aligned}
+$$
+
+### b
+```{r}
+data = read.table('hivrisk.dat', header = T)
+n = data$frequency
+i = data$encounters
+N = sum(n)
+pi = function(i, theta){
+  if(i==0) 
+    theta[1]+theta[2]*theta[3]^i*exp(-theta[3])+(1-theta[1]-theta[2])*theta[4]^i*exp(-theta[4])
+  else
+    theta[2]*theta[3]^i*exp(-theta[3])+(1-theta[1]-theta[2])*theta[4]^i*exp(-theta[4])
+}
+expectation = function(theta){
+  z = theta[1] / pi(0, theta)
+  ti = theta[2]*theta[3]^i*exp(-theta[3]) / sapply(i, FUN = pi, theta = theta)
+  pi = (1-theta[1]-theta[2])*theta[4]^i*exp(-theta[4]) / sapply(i, FUN = pi, theta = theta)
+  return(list('z' = z, 't' = ti, 'p' = pi))
+}
+maximize = function(ztp){
+  alpha = n[1]*ztp$z/N
+  beta = sum(n*ztp$t)/N
+  mu = sum(i*n*ztp$t)/sum(n*ztp$t)
+  lambda = sum(i*n*ztp$p)/sum(n*ztp$p)
+  return(c(alpha, beta, mu, lambda))
+}
+EM = function(p, max_iter = 100, epsilon = 0.00001){
+  p_iter = p
+  ztp = expectation(p_iter)
+  p_iter = maximize(ztp)
+  buffer_p = p_iter
+  for(step in 1:max_iter){
+    ztp = expectation(p_iter)
+    p_iter = maximize(ztp)
+    if(sum((p_iter-buffer_p)^2) < epsilon) break
+    else buffer_p = p_iter
+  }
+  return(p_iter)
+}
+EM(c(1/3,1/3,1,2))
+```
+The estimated parameters are $(\hat{\alpha},\hat{\beta},\hat{\mu},\hat{\lambda}) = (0.1189309, 0.5626058, 1.4476131, 5.9145419)$.
+
+
+## Problem 4.3
+### a
+The density of multivariate normal distribution is
+$$
+\begin{aligned}
+f & = \frac{1}{(2\pi)^{\frac{k}{2}}|\Sigma|^{\frac{1}{2}}}\exp(-\frac{1}{2}(x-\mu)^T\Sigma^{-1}(x-\mu))\\
+& = \frac{exp(-\frac{1}{2}\mu^T\Sigma^{-1}\mu)}{(2\pi)^{\frac{k}{2}}|\Sigma|^{\frac{1}{2}}}\exp(-\frac{1}{2}x^T\Sigma^{-1}x+x^T\Sigma^{-1}\mu)\\
+& = c_1(x)c_2(\theta)\exp(\theta^Ts(x))
+\end{aligned},
+$$
+and
+$$
+\mathrm{s}(\mathbf{x})=\left(\sum_{i=1}^{n} x_{i 1}^{2}, \sum_{i=1}^{n} x_{i 1} x_{i 2}, \sum_{i=1}^{n} x_{i 1} x_{i 3}, \sum_{i=1}^{n} x_{i 2}^{2}, \sum_{i=1}^{n} x_{i 2} x_{i 3}, \sum_{i=1}^{n} x_{i 3}^{2}, \sum_{i=1}^{n} x_{i 1}, \sum_{i=1}^{n} x_{i 2}, \sum_{i=1}^{n} x_{i 3}\right)^{\mathrm{T}}.
+$$
+Take expectation,
+$$
+E[\mathrm{s}(\mathbf{x})|\theta]=n\left(\mu_1^2+\sigma^2_{11}, \mu_1\mu_2+\sigma_{12}^2, \mu_1\mu_3+\sigma_{13}^2, \mu_2^2+\sigma^2_{22}, \mu_2\mu_3+\sigma_{23}^2, \mu_3^2+\sigma^2_{33}, \mu_1, \mu_2, \mu_3\right)^{\mathrm{T}}.
+$$
+Then, calculate the expectation $\mathrm{s}^{(t)}$ given $\mathbf{x}$ and $\theta^{(t)}$, for the entries in $\mathrm{s}(\mathbf{x})$,
+$$
+E[\sum_{i=1}^{n} x_{i j}^{2}|\mathbf{x},\theta^{(t)}] = \sum_{i,\text{obseved}}x_{ij}^2 + n_j((\mu_j^{(t)})^2+(\sigma_{jj}^{(t)})^2)
+$$
+$$
+E[\sum_{i=1}^{n} x_{i j}x_{i k}|\mathbf{x},\theta^{(t)}] = \sum_{i,\text{j,k obseved}}x_{ij}x_{ik} + \mu_j^{(t)}\sum_{i,\text{k observed, j not}}x_{ik}+ \mu_k^{(t)}\sum_{i,\text{j observed, k not}}x_{ij} + n_{jk}[\mu_j^{(t)}\mu_k^{(t)}+(\sigma_{jk}^{(t)})^2]
+$$
+$$
+E[\sum_{i=1}^{n} x_{i j}|\mathbf{x},\theta^{(t)}] = \sum_{i,\text{obseved}}x_{ij} + n_j\mu_j^{(t)}
+$$
+where $n_j$ is the number of samples missing $x_j$, and $n_{jk}$ is the number of samples missing both $x_j,x_k$. Then the algorithm is first to compute $s^{(t)}$, then solve $s^{(t)}=E[\mathrm{s}(\mathbf{x})|\theta]$ to update $\theta$.
+
+### b
+```{r}
+data = read.table('trivariatenormal.dat', header = T)
+x1=data[,1]
+x2=data[,2]
+x3=data[,3]
+n1=which(is.finite(x1))
+n2=which(is.finite(x2))
+n3=which(is.finite(x3))
+n12 = which(is.finite(x1+x2))
+n23 = which(is.finite(x3+x2))
+n13 = which(is.finite(x1+x3))
+n = length(x1)
+
+cal_st = function(theta){
+  e1 = sum(x1[n1]^2) + (n-length(n1))*(theta[[1]][1]^2 + theta[[2]][1])
+  e2 = sum(x1[n12]*x2[n12]) + (n-length(n12))*(theta[[1]][1]*theta[[1]][2] + theta[[2]][4]) 
+        + theta[[1]][1] * sum(x2[setequal(n2, which(is.na(x1)))])
+        + theta[[1]][2] * sum(x1[setequal(n1, which(is.na(x2)))])
+  e3 = sum(x1[n13]*x3[n13]) + (n-length(n13))*(theta[[1]][1]*theta[[1]][3] + theta[[2]][5]) 
+        + theta[[1]][1] * sum(x3[setequal(n3, which(is.na(x1)))])
+        + theta[[1]][3] * sum(x1[setequal(n1, which(is.na(x3)))])
+  e4 = sum(x2[n2]^2) + (n-length(n2))*(theta[[1]][2]^2 + theta[[2]][2])
+  e5 = sum(x2[n23]*x3[n23]) + (n-length(n23))*(theta[[1]][2]*theta[[1]][3] + theta[[2]][6]) 
+        + theta[[1]][2] * sum(x3[setequal(n3, which(is.na(x2)))])
+        + theta[[1]][3] * sum(x2[setequal(n2, which(is.na(x3)))])
+  e6 = sum(x3[n3]^2) + (n-length(n3))*(theta[[1]][3]^2 + theta[[2]][3])
+  e7 = sum(x1[n1]) + (n-length(n1))*theta[[1]][1]
+  e8 = sum(x2[n2]) + (n-length(n2))*theta[[1]][2]
+  e9 = sum(x3[n3]) + (n-length(n3))*theta[[1]][3]
+  return(c(e1,e2,e3,e4,e5,e6,e7,e8,e9))
+}
+
+E_s = function(e){
+  mu1 = e[7]/n
+  mu2 = e[8]/n
+  mu3 = e[9]/n
+  sigma11 = e[1]/n-mu1^2
+  sigma22 = e[3]/n-mu2^2
+  sigma33 = e[6]/n-mu3^2
+  sigma12 = e[2]/n-mu1*mu2
+  sigma13 = e[3]/n-mu1*mu3
+  sigma23 = e[5]/n-mu3*mu2
+  return(list(c(mu1,mu2,mu3),c(sigma11,sigma22,sigma33,sigma12,sigma13,sigma23)))
+}
+EM = function(init_theta, max_iter = 100, epsilon = 0.00001){
+  p_iter = init_theta
+  es = cal_st(p_iter)
+  p_iter = E_s(es)
+  buffer_p = p_iter
+  for(step in 1:max_iter){
+    es = cal_st(p_iter)
+    p_iter = E_s(es)
+    if(sum((p_iter[[1]]-buffer_p[[1]])^2)+sum((p_iter[[2]]-buffer_p[[2]])^2)  < epsilon) break
+    else buffer_p = p_iter
+  }
+  return(p_iter)
+}
+EM(list(c(1,1,1),c(1,1,1,0,0,0)))
+```
+Therefore the result of EM is 
+$$
+(\mu_1,\mu_2, \mu_3) = (0.8180011, 2.8383333, 8.9982924)
+$$
+$$
+(\sigma_{11}^2,\sigma_{22}^2,\sigma_{33}^2,\sigma_{12}^2,\sigma_{13}^2,\sigma_{23}^2) = (1.3872082, 0.3829242, 2.6581774, 1.0726190, 1.0784474, 1.3518888)
+$$

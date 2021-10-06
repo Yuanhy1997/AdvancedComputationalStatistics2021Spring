@@ -1,0 +1,304 @@
+## Problem 4.5
+### a
+As for the forward algorithm, firstly for the beginning,
+$$\alpha(0, h)=P\left[O_{0}=o_{0}, H_{0}=h\right]= P\left[O_{0}=o_{0}| H_{0}=h\right]*P\left[H_{0}=h\right]= \pi(h) e\left(h, o_{0}\right),$$
+then we can get for any $i = 0,...,n-1$,
+$$
+\begin{aligned}
+\alpha(i+1, h) &= P\left[\mathbf{O}_{\leq i+1} =\mathbf{o}_{\leq i+1}, H_{i+1}=h\right]\\ 
+&=\sum_{h^{*} \in \mathcal{H}} P\left[\mathbf{O}_{\leq i+1} =\mathbf{o}_{\leq i+1}, H_{i+1}=h, H_{i}=h^{*} \right] \\
+&=\sum_{h^{*} \in \mathcal{H}} P\left[O_{i+1} =o_{i+1}, H_{i+1}=h | \mathbf{O}_{\leq i} =\mathbf{o}_{\leq i},H_{i}=h^{*} \right] *P\left[ \mathbf{O}_{\leq i} =\mathbf{o}_{\leq i},H_{i}=h^{*} \right] \\
+&=\sum_{h^{*} \in \mathcal{H}} \alpha\left(i, h^{*}\right) P\left[O_{i+1} =o_{i+1}, H_{i+1}=h | H_{i}=h^{*} \right] \\
+&=\sum_{h^{*} \in \mathcal{H}} \alpha\left(i, h^{*}\right) P\left[O_{i+1} =o_{i+1}|H_{i+1}=h \right] P\left[ H_{i+1}=h | H_{i}=h^{*} \right] \\
+&=\sum_{h^{*} \in \mathcal{H}} \alpha\left(i, h^{*}\right) p\left(h^{*}, h\right) e\left(h, o_{i+1}\right) \\
+\end{aligned}
+$$
+Then using the similar method, we can proof the backward algorithm which is omitted.
+
+### b
+By definition,
+$$
+E\{N(h)\} =\frac{P\left[O_{0} =o_{0}|H_{0}=h, O_{>0} =o_{>0} \right] P\left[ H_{0}=h ,O_{>0} =o_{>0} \right]}{P[\mathbf{O}=\mathbf{o} | \boldsymbol{\theta}]}= \frac{\alpha(0, h) \beta(0, h)}{P[\mathbf{O}=\mathbf{o} | \boldsymbol{\theta}]},
+$$
+$$
+\begin{aligned}
+E\left\{N(h, h^{*})\right\} 
+&=\sum_{i=0}^{n-1} \frac{\alpha(i, h) \beta(i,h)\{ H_{i+1}=h^{*} \} }{P[\mathbf{O}=\mathbf{0} | \boldsymbol{\theta}]} \\
+&=\sum_{i=0}^{n-1} \frac{\alpha(i, h) P\left[\mathbf{O}_{> i} =\mathbf{o}_{> i}, H_{i+1}=h^{*} | H_{i}=h \right] }{P[\mathbf{O}=\mathbf{0} | \boldsymbol{\theta}]} \\
+&=\sum_{i=0}^{n-1} \frac{\alpha(i, h) p\left(h, h^{*}\right) e\left(h^{*}, o_{i+1}\right) \beta\left(i+1, h^{*}\right)}{P[\mathbf{O}=\mathbf{0} | \boldsymbol{\theta}]},
+\end{aligned}
+$$
+$$
+\begin{aligned}
+E\{N(h, o)\}
+&=\sum_{i} \frac{P\{ O_{i}=o, H_{i}=h \}}{P[\mathbf{O}=\mathbf{0} | \boldsymbol{\theta}]} \\
+&=\sum_{i: O_{i}=o} \frac{\alpha(i, h) \beta(i, h)}{P[\mathbf{O}=\mathbf{0} | \boldsymbol{\theta}]}.
+\end{aligned}
+$$
+
+### c
+Given the parameters, then the likelihood function is:
+$$
+f_{\boldsymbol{Y}}(\mathbf{y}|\boldsymbol{\theta})= \prod_{h \in \mathcal{H}} \pi(h)^{N(h)} \prod_{h \in \mathcal{H}} \prod_{o \in \mathcal{E}} e(h, o)^{N(h, o)} \prod_{h \in \mathcal{H}} \prod_{h^{*} \in \mathcal{H}} p\left(h, h^{*}\right)^{N\left(h, h^{*}\right)}.
+$$
+Taking log and conditional expection given parameter estimates in this time and the observed data, we can get Q-function, which is the E-step:
+$$
+Q(\boldsymbol{\theta}|\boldsymbol{\theta}^{(t)})= \sum_{h \in \mathcal{H}}N(h)^{(t)} log (\pi(h)) +\sum_{h \in \mathcal{H}} \sum_{o \in \mathcal{E}}N(h, o)^{(t)} log(e(h, o)) +\sum_{h \in \mathcal{H}} \sum_{h^{*} \in \mathcal{H}} N(h, h^{*})^{(t)} log(p(h, h^{*})),
+$$
+where the variables with $(t)$ upperscript is observed data or the expectation of missing data. For M-step, we set the derivatives to 0 and get iteration formula which is similar to the MLE of multivariate distributions,
+$$
+\begin{aligned}
+\pi(h)^{(t+1)} &=\frac{E\left\{N(h) | \boldsymbol{\theta}^{(t)}\right\}}{\sum_{h^{*} \in \mathcal{H}} E\left\{N\left(h^{*}\right) | \boldsymbol{\theta}^{(t)}\right\}} \\
+p\left(h, h^{*}\right)^{(t+1)} &=\frac{E\left\{N\left(h, h^{*}\right) | \boldsymbol{\theta}^{(t)}\right\}}{\sum_{h^{* *} \in \mathcal{H}} E\left\{N\left(h, h^{* *}\right) | \boldsymbol{\theta}^{(t)}\right\}} \\
+e(h, o)^{(t+1)} &=\frac{E\left\{N(h, o) | \boldsymbol{\theta}^{(t)}\right\}}{\sum_{o^{*} \in \mathcal{E}} E\left\{N\left(h, o^{*}\right) | \boldsymbol{\theta}^{(t)}\right\}}.
+\end{aligned}
+$$
+Then we get the exact Baum-Welch algorithm, hence it is an EM algorithm.
+
+### d
+```{r}
+library(HMM)
+data <- read.table("coin.dat", header=T)
+hmm <- initHMM(c("A","B"),c("H","T"), emissionProbs=matrix(c(0.7,0.4,0.3,0.6),2,2))
+result <- rep("H",200)
+result[which(data==0)] <- "T"
+baumWelch(hmm, result, 1000)$hmm
+```
+The work is a bit tedious, then using the packages in R get the desired result.
+
+## Problem 5.1
+Using Taylor expension on $f(x)$ at $x_{i}$, 
+$$f(x)=f(x_i)+f^{\prime}(x_i)+\frac12 f^{\prime\prime}(x_i)(x-x_i)^2+O(n^{-3})$$
+Then evaluate at $x=x_{i+1}$ and substitude the $f(x_{i+1})$ in $p_i(x)$, we get
+$$
+\begin{aligned}
+p_i(x) &= f(x_i)+(x-x_i)\left[f^{\prime}(x_i)+\frac12 f^{\prime\prime}(x_i)(x_{i+1}-x_i)+\frac{O(n^{-3})}{x_{i+1}-x_i} \right]\\
+&= f(x_i)+f^{\prime}(x_i)(x-x_i)+\frac12 f^{\prime\prime}(x_i)(x_{i+1}-x_i)(x-x_i)+O(n^{-3}).
+\end{aligned}
+$$
+Therefore (5.14) get proved.
+
+## 5.2
+Following the approach (5.8)-(5.11):
+$$p_{i0}(x)=\frac{(x-x_{i1}^*)(x-x_{i2}^*)}{(x_{i0}^*-x_{i1}^*)(x_{i0}^*-x_{i2}^*)}=\frac{2(x-\frac{x_i+x_{i+1}}{2})(x-x_{i+1})}{(x_{i+1}-x_{i})^2},$$
+$$p_{i1}(x)=\frac{(x-x_{i0}^*)(x-x_{i2}^*)}{(x_{i1}^*-x_{i0}^*)(x_{i1}^*-x_{i2}^*)}=-\frac{4(x-x_i)(x-x_{i+1})}{(x_{i+1}-x_{i})^2},$$
+$$p_{i2}(x)=\frac{(x-x_{i0}^*)(x-x_{i1}^*)}{(x_{i2}^*-x_{i0}^*)(x_{i2}^*-x_{i1}^*)}=\frac{2(x-x_{i})(x-\frac{x_i+x_{i+1}}{2})}{(x_{i+1}-x_{i})^2}.$$
+Therefore,
+$$A_{i0}=\int_{x_{i}}^{x_{i+1}} p_{i 0}(x) d x=\frac16 (x_{i+1}-x_i),$$
+$$A_{i1}=\int_{x_{i}}^{x_{i+1}} p_{i 1}(x) d x=\frac23 (x_{i+1}-x_i),$$
+$$A_{i2}=\int_{x_{i}}^{x_{i+1}} p_{i 2}(x) d x=\frac16 (x_{i+1}-x_i).$$
+
+## 5.3
+### a
+```{r}
+x = c(6.52,8.32,0.31,2.82,9.96,0.14,9.64)
+mean = mean(x)
+post = function(x){ dnorm(x,mean,3/sqrt(7))*dcauchy(x,5,2) }
+a = 0;b = 10;n = 1000
+h = (b-a)/n
+s = seq(a,b,length.out=n+1)
+1/(h*sum(sapply(s,post))-h*post(a)/2-h*post(b)/2)
+```
+Using Trapesoidal method, the result is 7.846569 which is close to 7.84654.
+
+### b
+```{r}
+post = function(x){ 7.84654*dnorm(x,mean,3/sqrt(7))*dcauchy(x,5,2) }
+riemann = function(a,b,n,fun){
+  h = (b-a)/n
+  s = seq(a,b,length.out=n+1)
+  return(h*sum(sapply(s,fun))-h*fun(b))
+}
+trapezoidal = function(a,b,n,fun){
+  h = (b-a)/n
+  s = seq(a,b,length.out=n+1)
+  return(h*sum(sapply(s,fun))-h*fun(a)/2-h*fun(b)/2)
+}
+simpson = function(a,b,n,fun){
+  h = (b-a)/n
+  s = seq(a,b,length.out=n+1)
+  f = sapply(s,fun)
+  even = f[seq(1,n+1,by=2)]
+  odd = f[seq(2,n+1,by=2)]
+  return(h*(sum(even[-1])+4*sum(odd)+sum(even[-length(even)]))/3)
+}
+n = 5^(1:5)
+#Riemann method
+(sapply(n,riemann,a=2,b=8,fun=post) - 0.99605) / 0.99605
+#Trapezoidal method
+(sapply(n,trapezoidal,a=2,b=8,fun=post) - 0.99605) / 0.99605
+#Simpson method
+(sapply(n,simpson,a=2,b=8,fun=post) - 0.99605) / 0.99605
+```
+From the result above, the relative error is relatively small when n becomes larger.
+
+### c
+Use Legendre quadrature method, the reverse transformation is:
+$$
+\mu = \log(u/(1-u))
+$$
+And 
+$$
+d\mu = \frac{1}{u(1-u)}du
+$$
+```{r}
+library(statmod)
+quad =  gauss.quad(3000)
+post2 = function(u){
+  return(post(log(u/(1-u)))/(u*(1-u)))
+}
+ix = which(quad[[1]]>=exp(3)/(1+exp(3)))
+sum(quad[[2]][ix]*sapply(quad[[1]][ix],post2))
+```
+Using this method the result is 0.9908472. The error is $-1.28\times10^{-5}$ which is pretty small. When we take the singularity point $u=1$ into account, then when $u$ approaches 1 which means $\mu$ goes to $\infty$, the density approaches to 0, then we set the density at $u=1$ to 0. Using the Trapezoidal method:
+```{r}
+post2 = function(u){
+  if(u==1)  return(0)
+  else  return(post(log(u/(1-u)))/(u*(1-u)))
+}
+trapezoidal(exp(3)/(1+exp(3)),1,3000,post2)
+```
+Using this method the result is 0.9908595. The error is $-5\times10^{-7}$. Using the same number of partitions, the second method reaches a better solution with lower error. While the first method does not need to consider the singularity point, which will be convenient for most complicated problem.
+
+### d
+The reverse transformation is:
+$$
+\mu = \frac{1}{u}.
+$$
+And 
+$$
+d\mu = -\frac{1}{u^2}du.
+$$
+```{r}
+post2 = function(u){
+  if(u==0)  return(0)
+  else  return(post(1/u)/u^2)
+}
+trapezoidal(0,1/3,3000,post2)
+```
+Using this method the result is 0.9908595.
+
+## 5.4
+```{r}
+romberg = function(a,b,m,fun){
+  output = matrix(0, m, m)
+  for(i in 1:m){
+    output[i,1] = trapezoidal(a, b, 2^i, fun)
+    if(i > 1){
+      for(j in 2:i){
+        output[i,j] = (4^j*output[i,j-1]-output[i-1,j-1])/(4^j-1)
+      }
+    }
+  }
+  return(output)
+}
+```
+When $a=2$, $\log(a)=0.6931472$, the result is:
+```{r}
+m = 6;a = 2
+ey = function(x){1/x}
+romberg(1,a,m,ey)
+```
+the relative error is:
+```{r}
+(romberg(1,a,m,ey)-log(a)) / log(a)
+```
+When $a=10$, $\log(a)=2.302585$, the result is:
+```{r}
+m = 6;a = 10
+ey = function(x){1/x}
+romberg(1,a,m,ey)
+```
+the relative error is:
+```{r}
+(romberg(1,a,m,ey)-log(a)) / log(a)
+```
+From the result, we can know that when the integration interval gets larger, we need increase $m$ to get accurate result. This is intuitively true because when the interval gets larger, the estimate of Trapezoidal method degrades, then we need more points in the interval to get smaller interval partitions.
+
+## 5.5
+### a
+```{r}
+node = c(-0.973906528517172,-0.865063366688985,-0.679409568299024,
+          -0.433395394129247,-0.148874338981631,0.148874338981631,
+          0.433395394129247,0.679409568299024,0.865063366688985,
+          0.973906528517172)
+weight = c(0.066671344308688,0.149451394150581,0.219086362515982,
+            0.269266719309996,0.295524224714753,0.295524224714753,
+            0.269266719309996,0.219086362515982,0.149451394150581,
+            0.066671344308688)
+plot(node,weight)
+```
+
+### b
+The ground true is $\int_{-1}^1 x^2dx = \frac{2}{3}$.The result of Gauss–Legendre quadrature is:
+```{r}
+sum(weight*node^2)
+```
+The relative error is:
+```{r}
+(sum(weight*node^2)-2/3)/(2/3)
+```
+With only 10 points the error is very small. This method has high accuracy.
+
+
+## 5.6
+### a
+Let $\alpha_k = 0, \beta_k = 1, \gamma_k = k-1$, and $p_0(x)=c,p_1(x)=cx$. Using the recursive function:
+$$
+p_k(x) = (\alpha_k + x\beta_k) p_{k−1}(x) − \gamma_kp_{k−2}(x).
+$$
+We can get the Hermite polynomial:
+$$
+H_5(x) = C(x^5 − 10x^3 + 15x).
+$$
+
+### b
+We calculate the integration:
+$$
+\int \frac{1}{\sqrt{2\pi}}\exp{(−x^2/2)}(x^5 − 10x^3 + 15x)^2dx
+$$
+$$
+\int \frac{1}{\sqrt{2\pi}}\exp{(−x^2/2)}(x^{10} + 100x^6 + 225x^2-20x^8+30x^6-300x^4)dx
+$$
+Then this can be treated as calculate the k-th moment of standard normal distribution. Then we get normalization constant $c = \frac{1}{\sqrt{120\sqrt{2\pi}}}$.
+
+### c
+The plot and roots are as follows:
+```{r}
+coefs = c(0,15,0,-10,0,1)
+f = function(x){
+  x^5 - 10* x^3 + 15 * x
+}
+plot(seq(-3,3,0.001), f(seq(-3,3,0.001)))
+roots = Re(polyroot(coefs))
+roots
+```
+
+### d
+```{r}
+H6 <- function(x){
+  1/sqrt(720*sqrt(2*pi))*(x^6-15*x^4+45*x^2-15)
+}
+H5dev <- function(x){
+  1/(sqrt(120*sqrt(2*pi)))*(5*x^4-30*x^2+15)
+}
+A = -(sqrt(120*sqrt(2*pi)))/(sqrt(720*sqrt(2*pi))*H5dev(roots)*H6(roots))
+plot(x = roots, y = A)
+```
+
+
+### e
+```{r}
+f = function(nu){
+  dt((nu-3)/8,1)#*dnorm(nu,0,sqrt(5))
+}
+c = sum(f(roots)*A)
+var = function(nu){
+  return(nu^2*f(nu)/c)
+}
+sum(var(roots)*A)
+```
+The variance is 0.9856553.
+
+
+

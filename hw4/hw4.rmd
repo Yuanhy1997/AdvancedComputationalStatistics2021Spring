@@ -1,0 +1,801 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+## Problem 3.2
+
+### a
+```{r}
+baseball.dat = read.table("baseball.dat",header=T)
+baseball.dat$freeagent = factor(baseball.dat$freeagent)
+baseball.dat$arbitration = factor(baseball.dat$arbitration)
+baseball.sub = baseball.dat[,-1]
+salary.log = log(baseball.dat$salary)
+n = length(salary.log)#sample numbers
+m = length(baseball.sub[1,])#number of varibles
+
+
+tabu_alg = function(max_iter = 100, tabu_tenure = 5){
+  set.seed(139992)
+  tabu = rep(0,m)
+  tabu.term = tabu_tenure
+  itr = max_iter
+  aics = rep(0,itr+1)
+  run = rbinom(m,1,.5)
+  run.current = run
+  run.vars = baseball.sub[,run.current==1]
+  g = lm(salary.log~.,run.vars)
+  run.aic = extractAIC(g)[2]
+  best.aic = run.aic
+  aics[1] = run.aic
+  for(j in 1:itr){
+  	run.aic = 0
+  	for(i in 1:m){
+  		run.step = run.current
+  		run.step[i] = !run.current[i]
+  		run.vars = baseball.sub[,run.step==1]
+  		g = lm(salary.log~.,run.vars)
+  		run.step.aic = extractAIC(g)[2]
+  		if(run.step.aic < run.aic && tabu[i]==0){
+    		run.next = run.step
+    		run.aic = run.step.aic
+    		pos = i
+      	}
+    	if(run.step.aic < run.aic && tabu[i]!=0 && run.step.aic < best.aic){
+      	run.next = run.step
+      	run.aic = run.step.aic
+      	pos = i
+      	}
+  	  if(tabu[i]!=0){tabu[i]=tabu[i]-1}
+  	}
+  	tabu[pos] = tabu.term
+  	if(prod(run.current == run.next)==1) break
+  	run.current = run.next
+  	if(run.aic < best.aic){
+  		best.aic = run.aic
+  		run = run.current
+  	}
+  	aics[j+1] = run.aic
+  }
+  return(list('run' = run, 'best' = best.aic, 'process_aic' = aics, 'iter_step' = j))
+}
+
+result_aic = c()
+result_iter = c()
+for(t in 2:9){
+  result = tabu_alg(tabu_tenure = t)
+  result_aic[t-2] = result$best
+  result_iter[t-2] = result$iter_step
+}
+-result_aic
+```
+This algorithm in example 3.7 already has overiding scheme when a reversed step achieves a AIC greater than the current best. The algorithm is pretty robust on the different Tabu tenures. And reasonable longer tenure will help the algorithm result in a better solution.
+
+
+### b
+```{r}
+tabu_alg_b = function(max_iter = 100, tabu_tenure = 3){
+  set.seed(139992)
+  tabu = rep(0,m)
+  change_tabu = 0
+  tabu.term = tabu_tenure
+  itr = max_iter
+  aics = rep(0,itr+1)
+  run = rbinom(m,1,.5)
+  run.current = run
+  run.vars = baseball.sub[,run.current==1]
+  g = lm(salary.log~.,run.vars)
+  run.aic = extractAIC(g)[2]
+  best.aic = run.aic
+  aics[1] = run.aic
+  for(j in 1:itr){
+  	run.aic = 0
+  	rum.change = 0
+  	for(i in 1:m){
+  		run.step = run.current
+  		run.step[i] = !run.current[i]
+  		run.vars = baseball.sub[,run.step==1]
+  		g = lm(salary.log~. ,run.vars)
+  		run.step.aic = extractAIC(g)[2]
+  		run.step.aic.change = abs(run.step.aic - aics[j])
+  		if(run.step.aic < run.aic && tabu[i]==0 && (change_tabu == 0||run.step.aic.change>1)){
+    		run.next = run.step
+    		run.aic = run.step.aic
+    		pos = i
+      	}
+    	if(run.step.aic < run.aic && (tabu[i]!=0 || (change_tabu!= 0&&run.step.aic.change<=1)) && run.step.aic < best.aic){
+      	run.next = run.step
+      	run.aic = run.step.aic
+      	pos = i
+      	}
+  	  if(tabu[i]!=0){tabu[i]=tabu[i]-1}
+  	}
+  	tabu[pos] = tabu.term
+  	if(change_tabu != 0) change_tabu = change_tabu - 1
+  	if(abs(run.aic - change_tabu)>1 && change_tabu == 0) change_tabu = tabu.term
+  	if(prod(run.current == run.next)==1){break}
+  	run.current = run.next
+  	if(run.aic < best.aic){
+  		best.aic = run.aic
+  		run = run.current
+  	}
+  	aics[j+1] = run.aic
+  }
+  return(list('run' = run, 'best' = best.aic, 'process_aic' = aics, 'iter_step' = j))
+}
+-tabu_alg_b(tabu_tenure = 3)$best
+-tabu_alg(tabu_tenure = 3)$best
+```
+Add a new attribute which complement is made tabu when the absolute change in AIC exceeds 1. This will increase the diversity of the algorithm. As the result shows when setting the tenure to 3, the result without this attribute is slightly lower than that with this attribute (416.61<418.95).
+
+### c
+
+```{r}
+tabu_alg_c = function(max_iter = 100, tabu_tenure = 3){
+  set.seed(139992)
+  tabu = rep(0,m)
+  tabu.term = tabu_tenure
+  override_flag = FALSE
+  itr = max_iter
+  aics = rep(0,itr+1)
+  run = rbinom(m,1,.5)
+  run.current = run
+  run.vars = baseball.sub[,run.current==1]
+  g = lm(salary.log~.,run.vars)
+  run.aic = extractAIC(g)[2]
+  run.r2 = summary(g)$r.squared
+  best.aic = run.aic
+  aics[1] = run.aic
+  for(j in 1:itr){
+  	run.aic = 0
+  	for(i in 1:m){
+  		run.step = run.current
+  		run.step[i] = !run.current[i]
+  		run.vars = baseball.sub[,run.step==1]
+  		g = lm(salary.log~.,run.vars)
+  		run.step.aic = extractAIC(g)[2]
+  		run.r2.next.step = summary(g)$r.squared
+  		if(abs(run.r2-run.r2.next.step)<0.05 && override_flag) flag = TRUE
+  		else flag = FALSE
+  		
+  		if(run.step.aic < run.aic && tabu[i]==0){
+    		run.next = run.step
+    		run.aic = run.step.aic
+    		run.r2.next = run.r2.next.step
+    		pos = i
+      	}
+    	if(run.step.aic < run.aic && tabu[i]!=0 && (run.step.aic < best.aic || flag)){
+      	run.next = run.step
+      	run.aic = run.step.aic
+      	run.r2.next = run.r2.next.step
+      	pos = i
+      	}
+  	  if(tabu[i]!=0){tabu[i]=tabu[i]-1}
+  	}
+  	tabu[pos] = tabu.term
+  	if(prod(run.current == run.next)==1) break
+  	
+  	if(abs(run.r2-run.r2.next)>0.05) override_flag = TRUE
+  	else override_flag = FALSE
+  	run.r2 = run.r2.next
+  	run.current = run.next
+  	if(run.aic < best.aic){
+  		best.aic = run.aic
+  		run = run.current
+  	}
+  	aics[j+1] = run.aic
+  }
+  return(list('run' = run, 'best' = best.aic, 'process_aic' = aics, 'iter_step' = j))
+}
+tabu_alg_c(tabu_tenure = 5)
+tabu_alg(tabu_tenure = 5)
+```
+With this implementation of aspiration by influence, there shows no difference in result. The threshold defining high influence is non-trivial. Also in this algorithm setting, the neighborhood is those simple 1-change combinations, so it is not sensitive to these tricks.
+
+## Problem 3.3
+### a
+```{r}
+simulated.annealing = function(cooling = c(rep(60,5),rep(120,5),rep(220,5)),
+                               tau = rep(10,15)){
+  aics = NULL
+  set.seed(1999)
+  run = rbinom(m,1,.5)
+  run.current = run
+  run.vars = baseball.sub[,run.current==1]
+  g = lm(salary.log~.,run.vars)
+  run.aic = extractAIC(g)[2]
+  best.aic = run.aic
+  aics = run.aic
+  for(j in 1:15){
+  	for(i in 1:cooling[j]){
+  		pos = sample(1:m,1)
+  		run.step = run.current
+  		run.step[pos] = !run.current[pos]
+  		run.vars = baseball.sub[,run.step==1]
+  		g = lm(salary.log~.,run.vars)
+  		run.step.aic = extractAIC(g)[2]
+  		p = min(1,exp((run.aic-extractAIC(g)[2])/tau[j]))
+  		if(run.step.aic < run.aic){
+  			run.current = run.step
+  			run.aic = run.step.aic}
+  		if(rbinom(1,1,p)){
+  			run.current = run.step
+  			run.aic = run.step.aic}
+  		if(run.step.aic < best.aic){
+  			run = run.step
+  			best.aic = run.step.aic}
+  		aics = c(aics,run.aic)
+	  }
+  }
+  print(run)
+  print(best.aic)
+  plot(aics,ylim=c(-420,-360),type="n",ylab="AIC", xlab="Iteration")
+  lines(aics)
+}
+```
+Firstly with fixed duration at each temperature, we test two different temperature schedules. $a\tau_{j-1}$ and $\tau_{j-1}/(1+a\tau_{j-1})$, let $a=0.9$
+```{r}
+a = 0.9
+cooling = rep(50,15)
+tau = rep(10,15)
+for(i in 1:20){
+  tau[i] = tau[i] * a^(i-1)
+}
+simulated.annealing(cooling, tau)
+cooling = rep(100,15)
+tau = rep(10,15)
+for(i in 2:20){
+  tau[i] = tau[i-1] / (1+a*tau[i-1])
+}
+simulated.annealing(cooling, tau)
+```
+Therefore, the second temperature shcedule converge to optima a lot faster than the first one. Then set the temperature schedule to the first one, then we compare two kinds of duration schedule, $m_{i-1}+K$ and $bm_{j-1}$, let $K=20$ and $b=1.1$.
+```{r}
+a = 0.9
+b = 1.1
+k = 20
+cooling = rep(50,15)
+tau = rep(10,15)
+for(i in 1:20){
+  tau[i] = tau[i] * a^(i-1)
+  cooling[i] = cooling[i] + k*(i-1)
+}
+simulated.annealing(cooling, tau)
+cooling = rep(50,15)
+tau = rep(10,15)
+for(i in 1:20){
+  tau[i] = tau[i] * a^(i-1)
+  cooling[i] = cooling[i] * b^(i-1)
+}
+simulated.annealing(cooling, tau)
+```
+The second durtion schedule seems better, because the plot line seems smoother. The final outcome of the two kinds of schedules are similar. The algorithm is less sensitive to duration schedule than to temperature schedule. 
+
+
+### b
+```{r}
+neighbor = function(cooling = c(rep(60,5),rep(120,5),rep(220,5)),
+                      tau = rep(10,15),
+                      neigh = 1){
+  aics = NULL
+  for(j in 2:15){tau[j] = 0.9*tau[j-1]}
+  set.seed(1999)
+  run = rbinom(m,1,.5)
+  run.current = run
+  run.vars = baseball.sub[,run.current==1]
+  g = lm(salary.log~.,run.vars)
+  run.aic = extractAIC(g)[2]
+  best.aic = run.aic
+  aics = run.aic
+  for(j in 1:15){
+  	for(i in 1:cooling[j]){
+  		pos = sample(1:m,neigh)
+  		run.step = run.current
+  		run.step[pos] = !run.current[pos]
+  		run.vars = baseball.sub[,run.step==1]
+  		g = lm(salary.log~.,run.vars)
+  		run.step.aic = extractAIC(g)[2]
+  		p = min(1,exp((run.aic-extractAIC(g)[2])/tau[j]))
+  		if(run.step.aic < run.aic){
+  			run.current = run.step
+  			run.aic = run.step.aic}
+  		if(rbinom(1,1,p)){
+  			run.current = run.step
+  			run.aic = run.step.aic}
+  		if(run.step.aic < best.aic){
+  			run = run.step
+  			best.aic = run.step.aic}
+  		aics = c(aics,run.aic)
+	  }
+  }
+  print(run)
+  print(best.aic)
+  plot(aics,ylim=c(-420,-360),type="n",ylab="AIC", xlab="Iteration")
+  lines(aics)
+}
+
+neighbor(neigh = 2)#discrete uniform over 2-neighborhoods
+neighbor(neigh = 3)#discrete uniform over 3-neighborhoods
+```
+The result plot and best AIC seems similar, and 2-neighbor distribution seems a little better. 
+When changes of neighborhood increase, the algorithm degrade, it is partly because the algorithm will search on a broader landscape, it is hard to focus on the optimal area with limited iteration steps.
+
+## Problem 3.4
+```{r}
+generic = function(m.rate = .01, P = 20){
+  itr = 100
+  r = matrix(0,P,1)
+  phi = matrix(0,P,1)
+  runs = matrix(0,P,m)
+  runs.next = matrix(0,P,m)
+  runs.aic = matrix(0,P,1)
+  aics = matrix(0,P,itr)
+  run = NULL
+  best.aic = 0
+  best.aic.gen = rep(0,itr)
+  
+  # INITIALIZES STARTING GENERATION, FITNESS VALUES
+  set.seed(321955) 
+  for(i in 1:P){
+  	runs[i,] = rbinom(m,1,.5)
+  	run.vars = baseball.sub[,runs[i,]==1]
+  	g = lm(salary.log~.,run.vars)
+  	runs.aic[i] = extractAIC(g)[2]
+  	aics[i,1] = runs.aic[i]
+  	if(runs.aic[i] < best.aic){
+  		run = runs[i,]
+  		best.aic = runs.aic[i]
+  	}
+  }
+  r = rank(-runs.aic)
+  phi = 2*r/(P*(P+1))
+  best.aic.gen[1]=best.aic
+  
+  ## MAIN
+  for(j in 1:itr-1){
+  
+  	# BUILDS THE NEW GENERATION, SELECTING FIRST PARENT BASED ON
+  	# FITNESS AND THE SECOND PARENT AT RANDOM
+  	for(i in 1:P/2){
+  		parent.1 = runs[sample(1:P,1,prob=phi),]
+  		parent.2 = runs[sample(1:P,1),]
+  		pos = sample(1:(m-1),1)
+  		mutate = rbinom(m,1,m.rate)
+  		runs.next[i,] = c(parent.1[1:pos],parent.2[(pos+1):m])
+  		runs.next[i,] = (runs.next[i,]+mutate)%%2
+  		mutate = rbinom(m,1,m.rate)
+  		runs.next[P+1-i,] = c(parent.2[1:pos],parent.1[(pos+1):m])
+  		runs.next[P+1-i,] = (runs.next[P+1-i,]+mutate)%%2
+  	}
+  	runs = runs.next
+  
+  	# UPDATES AIC VALUES, FITNESS VALUES FOR NEW GENERATION
+  	for(i in 1:P){
+  		run.vars = baseball.sub[,runs[i,]==1]
+  		g = lm(salary.log~.,run.vars)
+  		runs.aic[i] = extractAIC(g)[2]
+  		aics[i,j+1] = runs.aic[i]
+  		if(runs.aic[i] < best.aic){
+  			run = runs[i,]
+  			best.aic = runs.aic[i]
+  		}
+  	}
+  	best.aic.gen[j+1]=best.aic
+  	r = rank(-runs.aic)
+  	phi = 2*r/(P*(P+1))
+  }
+  plot(-aics,xlim=c(0,itr),ylim=c(50,425),type="n",ylab="Negative AIC",
+	xlab="Generation",main="AIC Values For Genetic Algorithm")
+  for(i in 1:itr){points(rep(i,P),-aics[,i],pch=20)}
+  return(list('run' = run, 'aic' = best.aic))
+}
+```
+
+### a
+```{r}
+aics = c()
+mut = c(0.001, 0.01, 0.05, 0.1, 0.5)
+for(i in 1:5){
+  aics[i] = generic(m.rate = i/100)[[2]]
+}
+aics
+```
+
+
+### b
+```{r}
+aics = c()
+p = c(5, 20, 50, 100)
+for(i in 1:4){
+  aics[i] = generic(P = p[i])[[2]]
+}
+aics
+```
+
+### c
+#### i
+```{r}
+generic_i = function(m.rate = .01, P = 20){
+  itr = 100
+  r = matrix(0,P,1)
+  phi = matrix(0,P,1)
+  runs = matrix(0,P,m)
+  runs.next = matrix(0,P,m)
+  runs.aic = matrix(0,P,1)
+  aics = matrix(0,P,itr)
+  run = NULL
+  best.aic = 0
+  best.aic.gen = rep(0,itr)
+  
+  # INITIALIZES STARTING GENERATION, FITNESS VALUES
+  set.seed(321955) 
+  for(i in 1:P){
+  	runs[i,] = rbinom(m,1,.5)
+  	run.vars = baseball.sub[,runs[i,]==1]
+  	g = lm(salary.log~.,run.vars)
+  	runs.aic[i] = extractAIC(g)[2]
+  	aics[i,1] = runs.aic[i]
+  	if(runs.aic[i] < best.aic){
+  		run = runs[i,]
+  		best.aic = runs.aic[i]
+  	}
+  }
+  fitness = runs.aic - (mean(runs.aic) - 2 * sqrt(var(runs.aic)))[1,1]
+  fitness = fitness + abs(min(fitness))
+  fitness[fitness<0] = 0
+  phi = fitness/(sum(fitness))
+  best.aic.gen[1]=best.aic
+  
+  ## MAIN
+  for(j in 1:itr-1){
+  
+  	# BUILDS THE NEW GENERATION, SELECTING FIRST PARENT BASED ON
+  	# FITNESS AND THE SECOND PARENT AT RANDOM
+  	for(i in 1:P/2){
+  		parent.1 = runs[sample(1:P,1,prob=phi),]
+  		parent.2 = runs[sample(1:P,1),]
+  		pos = sample(1:(m-1),1)
+  		mutate = rbinom(m,1,m.rate)
+  		runs.next[i,] = c(parent.1[1:pos],parent.2[(pos+1):m])
+  		runs.next[i,] = (runs.next[i,]+mutate)%%2
+  		mutate = rbinom(m,1,m.rate)
+  		runs.next[P+1-i,] = c(parent.2[1:pos],parent.1[(pos+1):m])
+  		runs.next[P+1-i,] = (runs.next[P+1-i,]+mutate)%%2
+  	}
+  	runs = runs.next
+  
+  	# UPDATES AIC VALUES, FITNESS VALUES FOR NEW GENERATION
+  	for(i in 1:P){
+  		run.vars = baseball.sub[,runs[i,]==1]
+  		g = lm(salary.log~.,run.vars)
+  		runs.aic[i] = extractAIC(g)[2]
+  		aics[i,j+1] = runs.aic[i]
+  		if(runs.aic[i] < best.aic){
+  			run = runs[i,]
+  			best.aic = runs.aic[i]
+  		}
+  	}
+  	best.aic.gen[j+1]=best.aic
+  	r = rank(-runs.aic)
+  	phi = 2*r/(P*(P+1))
+  }
+  plot(-aics,xlim=c(0,itr),ylim=c(50,425),type="n",ylab="Negative AIC",
+	xlab="Generation",main="AIC Values For Genetic Algorithm")
+  for(i in 1:itr){points(rep(i,P),-aics[,i],pch=20)}
+  return(list('run' = run, 'aic' = best.aic))
+}
+generic_i()
+```
+
+
+#### ii
+```{r}
+generic_ii = function(m.rate = .01, P = 20){
+  itr = 100
+  r = matrix(0,P,1)
+  phi = matrix(0,P,1)
+  runs = matrix(0,P,m)
+  runs.next = matrix(0,P,m)
+  runs.aic = matrix(0,P,1)
+  aics = matrix(0,P,itr)
+  run = NULL
+  best.aic = 0
+  best.aic.gen = rep(0,itr)
+  
+  # INITIALIZES STARTING GENERATION, FITNESS VALUES
+  set.seed(321955) 
+  for(i in 1:P){
+  	runs[i,] = rbinom(m,1,.5)
+  	run.vars = baseball.sub[,runs[i,]==1]
+  	g = lm(salary.log~.,run.vars)
+  	runs.aic[i] = extractAIC(g)[2]
+  	aics[i,1] = runs.aic[i]
+  	if(runs.aic[i] < best.aic){
+  		run = runs[i,]
+  		best.aic = runs.aic[i]
+  	}
+  }
+  fitness = runs.aic - (mean(runs.aic) - 2 * sqrt(var(runs.aic)))[1,1]
+  fitness = fitness + abs(min(fitness))
+  fitness[fitness<0] = 0
+  phi = fitness/(sum(fitness))
+  best.aic.gen[1]=best.aic
+  
+  ## MAIN
+  for(j in 1:itr-1){
+  
+  	# BUILDS THE NEW GENERATION, SELECTING FIRST PARENT BASED ON
+  	# FITNESS AND THE SECOND PARENT AT RANDOM
+  	for(i in 1:P/2){
+  		parent.1 = runs[sample(1:P,1,prob=phi),]
+  		parent.2 = runs[sample(1:P,1,prob=phi),]
+  		pos = sample(1:(m-1),1)
+  		mutate = rbinom(m,1,m.rate)
+  		runs.next[i,] = c(parent.1[1:pos],parent.2[(pos+1):m])
+  		runs.next[i,] = (runs.next[i,]+mutate)%%2
+  		mutate = rbinom(m,1,m.rate)
+  		runs.next[P+1-i,] = c(parent.2[1:pos],parent.1[(pos+1):m])
+  		runs.next[P+1-i,] = (runs.next[P+1-i,]+mutate)%%2
+  	}
+  	runs = runs.next
+  
+  	# UPDATES AIC VALUES, FITNESS VALUES FOR NEW GENERATION
+  	for(i in 1:P){
+  		run.vars = baseball.sub[,runs[i,]==1]
+  		g = lm(salary.log~.,run.vars)
+  		runs.aic[i] = extractAIC(g)[2]
+  		aics[i,j+1] = runs.aic[i]
+  		if(runs.aic[i] < best.aic){
+  			run = runs[i,]
+  			best.aic = runs.aic[i]
+  		}
+  	}
+  	best.aic.gen[j+1]=best.aic
+  	r = rank(-runs.aic)
+  	phi = 2*r/(P*(P+1))
+  }
+  plot(-aics,xlim=c(0,itr),ylim=c(50,425),type="n",ylab="Negative AIC",
+	xlab="Generation",main="AIC Values For Genetic Algorithm")
+  for(i in 1:itr){points(rep(i,P),-aics[,i],pch=20)}
+  return(list('run' = run, 'aic' = best.aic))
+}
+generic_ii()
+```
+
+#### iii
+```{r}
+generic_iii = function(m.rate = .01, P = 20){
+  itr = 100
+  r = matrix(0,P,1)
+  phi = matrix(0,P,1)
+  runs = matrix(0,P,m)
+  runs.next = matrix(0,P,m)
+  runs.aic = matrix(0,P,1)
+  aics = matrix(0,P,itr)
+  run = NULL
+  best.aic = 0
+  best.aic.gen = rep(0,itr)
+  
+  # INITIALIZES STARTING GENERATION, FITNESS VALUES
+  set.seed(321955) 
+  for(i in 1:P){
+  	runs[i,] = rbinom(m,1,.5)
+  	run.vars = baseball.sub[,runs[i,]==1]
+  	g = lm(salary.log~.,run.vars)
+  	runs.aic[i] = extractAIC(g)[2]
+  	aics[i,1] = runs.aic[i]
+  	if(runs.aic[i] < best.aic){
+  		run = runs[i,]
+  		best.aic = runs.aic[i]
+  	}
+  }
+  
+  parent_pool = c()
+  satra = P/5
+  for(i in 1:P/satra){
+    r = sample(rank(-runs.aic), P)
+    parent_pool[satra*(i-1)+1] = max(r[1:5])
+    parent_pool[satra*(i-1)+2] = max(r[6:10]) 
+    parent_pool[satra*(i-1)+3] = max(r[11:15])
+    parent_pool[satra*(i-1)+4] = max(r[16:20]) 
+  }
+  best.aic.gen[1]=best.aic
+  
+  ## MAIN
+  for(j in 1:itr-1){
+  
+  	# BUILDS THE NEW GENERATION, SELECTING FIRST PARENT BASED ON
+  	# FITNESS AND THE SECOND PARENT AT RANDOM
+  	for(i in 1:P/2){
+  		parent.1 = runs[parent_pool[i],]
+  		parent.2 = runs[parent_pool[i+10],]
+  		pos = sample(1:(m-1),1)
+  		mutate = rbinom(m,1,m.rate)
+  		runs.next[i,] = c(parent.1[1:pos],parent.2[(pos+1):m])
+  		runs.next[i,] = (runs.next[i,]+mutate)%%2
+  		mutate = rbinom(m,1,m.rate)
+  		runs.next[P+1-i,] = c(parent.2[1:pos],parent.1[(pos+1):m])
+  		runs.next[P+1-i,] = (runs.next[P+1-i,]+mutate)%%2
+  	}
+  	runs = runs.next
+  
+  	# UPDATES AIC VALUES, FITNESS VALUES FOR NEW GENERATION
+  	for(i in 1:P){
+  		run.vars = baseball.sub[,runs[i,]==1]
+  		g = lm(salary.log~.,run.vars)
+  		runs.aic[i] = extractAIC(g)[2]
+  		aics[i,j+1] = runs.aic[i]
+  		if(runs.aic[i] < best.aic){
+  			run = runs[i,]
+  			best.aic = runs.aic[i]
+  		}
+  	}
+  	best.aic.gen[j+1]=best.aic
+  	r = rank(-runs.aic)
+  	phi = 2*r/(P*(P+1))
+  }
+  plot(-aics,xlim=c(0,itr),ylim=c(50,425),type="n",ylab="Negative AIC",
+	xlab="Generation",main="AIC Values For Genetic Algorithm")
+  for(i in 1:itr){points(rep(i,P),-aics[,i],pch=20)}
+  return(list('run' = run, 'aic' = best.aic))
+}
+generic_iii()
+```
+Using $\phi(\theta^{(t)}_i) = f(\theta^{(t)}_i) - (\bar{f} -2s)$, the rescaling function, the second method achieves the fast convergence speed and better result. However the tournament selection is not very good. And all the chromosomes converge to the larger negative AIC points at the very end of the generation. It is pretty slow.
+
+### d
+```{r}
+generic_steady = function(m.rate = .01, P = 20){
+  itr = 500
+  r = matrix(0,P,1)
+  phi = matrix(0,P,1)
+  runs = matrix(0,P,m)
+  runs.next = matrix(0,P,m)
+  runs.aic = matrix(0,P,1)
+  aics = matrix(0,P,itr)
+  run = NULL
+  best.aic = 0
+  best.aic.gen = rep(0,itr)
+  
+  # INITIALIZES STARTING GENERATION, FITNESS VALUES
+  set.seed(321955) 
+  for(i in 1:P){
+  	runs[i,] = rbinom(m,1,.5)
+  	run.vars = baseball.sub[,runs[i,]==1]
+  	g = lm(salary.log~.,run.vars)
+  	runs.aic[i] = extractAIC(g)[2]
+  	aics[i,1] = runs.aic[i]
+  	if(runs.aic[i] < best.aic){
+  		run = runs[i,]
+  		best.aic = runs.aic[i]
+  	}
+  }
+  r = rank(-runs.aic)
+  phi = 2*r/(P*(P+1))
+  best.aic.gen[1]=best.aic
+  
+  ## MAIN
+  for(j in 1:itr-1){
+  
+  	# BUILDS THE NEW GENERATION, SELECTING FIRST PARENT BASED ON
+  	# FITNESS AND THE SECOND PARENT AT RANDOM
+		parent.1 = runs[sample(1:P,1,prob=phi),]
+		parent.2 = runs[sample(1:P,1),]
+		pos = sample(1:(m-1),1)
+		mutate = rbinom(m,1,m.rate)
+		runs.next = runs
+		runs.next[which.max(runs.aic[,1]),] = c(parent.1[1:pos],parent.2[(pos+1):m])
+		runs.next[which.max(runs.aic[,1]),] = (runs.next[i,]+mutate)%%2
+  	runs = runs.next
+  
+  	# UPDATES AIC VALUES, FITNESS VALUES FOR NEW GENERATION
+  	for(i in 1:P){
+  		run.vars = baseball.sub[,runs[i,]==1]
+  		g = lm(salary.log~.,run.vars)
+  		runs.aic[i] = extractAIC(g)[2]
+  		aics[i,j+1] = runs.aic[i]
+  		if(runs.aic[i] < best.aic){
+  			run = runs[i,]
+  			best.aic = runs.aic[i]
+  		}
+  	}
+  	best.aic.gen[j+1]=best.aic
+  	r = rank(-runs.aic)
+  	phi = 2*r/(P*(P+1))
+  }
+  plot(-aics,xlim=c(0,itr),ylim=c(50,425),type="n",ylab="Negative AIC",
+	xlab="Generation",main="AIC Values For Genetic Algorithm")
+  for(i in 1:itr){points(rep(i,P),-aics[,i],pch=20)}
+  return(list('run' = run, 'aic' = best.aic))
+}
+generic_steady()
+```
+Because this algoritm update one individual at a iteration step, so we have to increase the limitation of maximum iteration steps. And the result turns out to be brillent, converging pretty fast and have good convergence tendence.
+
+
+
+### e
+```{r}
+generic_uniform_co = function(m.rate = .01, P = 20){
+  itr = 100
+  r = matrix(0,P,1)
+  phi = matrix(0,P,1)
+  runs = matrix(0,P,m)
+  runs.next = matrix(0,P,m)
+  runs.aic = matrix(0,P,1)
+  aics = matrix(0,P,itr)
+  run = NULL
+  best.aic = 0
+  best.aic.gen = rep(0,itr)
+  
+  # INITIALIZES STARTING GENERATION, FITNESS VALUES
+  set.seed(321955) 
+  for(i in 1:P){
+  	runs[i,] = rbinom(m,1,.5)
+  	run.vars = baseball.sub[,runs[i,]==1]
+  	g = lm(salary.log~.,run.vars)
+  	runs.aic[i] = extractAIC(g)[2]
+  	aics[i,1] = runs.aic[i]
+  	if(runs.aic[i] < best.aic){
+  		run = runs[i,]
+  		best.aic = runs.aic[i]
+  	}
+  }
+  r = rank(-runs.aic)
+  phi = 2*r/(P*(P+1))
+  best.aic.gen[1]=best.aic
+  
+  ## MAIN
+  for(j in 1:itr-1){
+  
+  	# BUILDS THE NEW GENERATION, SELECTING FIRST PARENT BASED ON
+  	# FITNESS AND THE SECOND PARENT AT RANDOM
+  	for(i in 1:P/2){
+  		parent.1 = runs[sample(1:P,1,prob=phi),]
+  		parent.2 = runs[sample(1:P,1),]
+  		pos = rbinom(m,1,0.5)
+  		mutate = rbinom(m,1,m.rate)
+  		for(k in 1:m){
+  		  if(pos[k]==1) runs.next[i,k] = parent.1[k]
+  		  else runs.next[i,k] = parent.2[k]
+  		}
+  		runs.next[i,] = (runs.next[i,]+mutate)%%2
+  		mutate = rbinom(m,1,m.rate)
+  		pos = rbinom(m,1,0.5)
+  		for(k in 1:m){
+  		  if(pos[k]==1) runs.next[P+1-i,k] = parent.1[k]
+  		  else runs.next[P+1-i,k] = parent.2[k]
+  		}
+  		runs.next[P+1-i,] = (runs.next[P+1-i,]+mutate)%%2
+  	}
+  	runs = runs.next
+  
+  	# UPDATES AIC VALUES, FITNESS VALUES FOR NEW GENERATION
+  	for(i in 1:P){
+  		run.vars = baseball.sub[,runs[i,]==1]
+  		g = lm(salary.log~.,run.vars)
+  		runs.aic[i] = extractAIC(g)[2]
+  		aics[i,j+1] = runs.aic[i]
+  		if(runs.aic[i] < best.aic){
+  			run = runs[i,]
+  			best.aic = runs.aic[i]
+  		}
+  	}
+  	best.aic.gen[j+1]=best.aic
+  	r = rank(-runs.aic)
+  	phi = 2*r/(P*(P+1))
+  }
+  plot(-aics,xlim=c(0,itr),ylim=c(50,425),type="n",ylab="Negative AIC",
+	xlab="Generation",main="AIC Values For Genetic Algorithm")
+  for(i in 1:itr){points(rep(i,P),-aics[,i],pch=20)}
+  return(list('run' = run, 'aic' = best.aic))
+}
+generic_uniform_co()
+
+```
+Good result, and fast convergence.
+
+

@@ -1,0 +1,251 @@
+
+
+## Slides Problem
+Let $f(x)=\phi(\frac{x}{\hat{\sigma}})/\hat{\sigma}$, then
+$$
+f''(x)=\phi''(\frac{x}{\hat{\sigma}})/\hat{\sigma}^3,
+$$
+and
+$$
+\begin{align}
+R(f'') & = \int(\phi''(\frac{x}{\hat{\sigma}})/\hat{\sigma}^3)^2dx \\
+& = \frac{1}{\hat{\sigma}^6}\int(\phi''(\frac{x}{\hat{\sigma}}))^2dx \\
+& = \frac{1}{\hat{\sigma}^5}\int(\phi''(t))^2dt = \frac{1}{\hat{\sigma}^5}R(\phi''),
+\end{align}
+$$
+then in $h = (\frac{R(K)}{n\sigma^4_KR(f'')})^{\frac{1}{5}}$, substitute $R(K)$ by $R(\phi)$, and $R(f'')$ by $\frac{1}{\hat{\sigma}^5}R(\phi'')$. Because
+$$
+\begin{align}
+R(\phi'')=\frac{3}{8\sqrt{\pi}}\\
+R(\phi)=\frac{1}{2\sqrt{\pi}}\\
+\sigma^4_K = 1.
+\end{align}
+$$
+We have the desired result,
+$$
+h = \hat{\sigma}(\frac{4}{3n})^{\frac{1}{5}}.
+$$
+
+## Problem 10.1
+
+### a
+```{r}
+data = read.table("./infrared.dat",header=T)
+X = log(data$F12)
+
+par(mfrow = c(2,2))
+plot(density(X, bw = bw.ucv(X)), main = 'UCV')
+plot(density(X, bw = sd(X)*(4/(3*length(X)))^(1/5)), main = 'Silverman’s rule of thumb')
+plot(density(X, bw = bw.SJ(X)), main = 'Sheather–Jones')
+plot(density(X, bw = 3*sd(X)*((1/(2*sqrt(pi)))/(35*length(X)))^.2), main = 'Terrell’s maximal smoothing')
+```
+
+The UCV bandwidth is not so well because it is too small and the estimated density has many false modes and is not smooth. The other three performs similarly.
+
+### b
+
+```{r}
+library(KernSmooth)
+unf = density(X, bw=bw.SJ(X), kernel="rectangular")
+nor = density(X, bw=bw.SJ(X), kernel="gaussian")
+epa = density(X, bw=bw.SJ(X), kernel="epanechnikov")
+tri = bkde(X, kernel = "triweight", canonical = FALSE, bw.SJ(X)) 
+par(mfrow = c(2,2))
+plot(unf, main = 'uniform')
+plot(nor, main = 'normal')
+plot(epa, main = 'epanechnikov')
+plot(tri, main = 'triweight', type = 'l')
+```
+
+The smoothest one is using epanechnikov kernel, and using triweight kernel have many false modes.
+
+### c
+```{r}
+kernel_can = function(z){ifelse(abs(z)<=1,0.5,0)}
+k_unif = function(z,h){mean(kernel_can((z-X)/h))/h}
+k_norm = function(z,h){mean(dnorm((z-X)/h))/h}
+
+k = 50
+X = sort(X)
+neighbor = sapply(X,function(z){sort(abs(z-X))[k]})
+d1 = mapply(k_unif, X, neighbor)
+plot(X,d1,type='l',main="Uniform Kernel")
+d2 = mapply(k_norm, X, neighbor)
+plot(X,d2,type='l',main="Normal Kernel")
+```
+
+### e
+```{r}
+h_s = sd(X)*(4/(3*length(X)))^0.2
+h_SJ = bw.SJ(X)
+ratio = h_SJ/h_s
+z = exp(X)
+h_s_z = sd(z)*(4/(3*length(z)))^0.2/ratio
+f_z = density(z, bw=h_s_z, kernel="gaussian")
+f_x = density(X, bw=h_SJ, kernel="gaussian")
+fz = matrix(0,2,length(f_x$x))
+fz[1,] = exp(f_x$x)
+fz[2,] = f_x$y/fz[1,]
+hist(z[z<=8],breaks=40,freq=F,xlim=c(0,8),ylim=c(0,1.4),main="histogram of Z",xlab = 'z')
+points(f_z,type="l",col="blue")
+points(fz[1,],fz[2,],type="l",col=2)
+```
+The red line is the result of change-of-varible result, it is much better than the blue one which is the original data density estimate.
+
+## Problem 10.2
+
+### a
+
+We can also choose $h$ that minimize AMISE, as drived in slides.
+```{r}
+Y = log(data$F100)
+m = 100
+h = c(sd(X)*(1/length(X))^(1/6),sd(Y)*(1/length(Y))^(1/6))
+
+x_grid = seq(min(X), max(X), length.out=m)
+y_grid = seq(min(Y), max(Y), length.out=m)
+f = matrix(0,m,m)
+for(i in 1:m){
+  for (j in 1:m){
+    f[i,j] = mean(dnorm((x_grid[i]-X)/h[1])/h[1]*dnorm((y_grid[j]-Y)/h[2])/h[2])
+  }
+}
+
+persp(x_grid,y_grid,f,theta=30,expand=0.7,xlab="X",ylab="Y")
+```
+
+### b
+
+```{r}
+cov = matrix(c(var(X),cov(X,Y),cov(X,Y),var(Y)),2,2)
+h = (10^4*pi*(1/(2*sqrt(pi)))/(16*length(X)*4*24))^(1/3)*cov
+inv = solve(h)
+for(i in 1:m){
+  for (j in 1:m){
+    f[i,j] = mean(exp(-0.5*((inv[1,1]*(x_grid[i]-X)+inv[1,2]*(y_grid[j]-Y))^2+
+                             (inv[2,1]*(x_grid[i]-X)+inv[2,2]*(y_grid[j]-Y))^2))/(2*pi))/det(h)
+  }
+}
+persp(x_grid,y_grid,f,theta=30,expand=0.7,xlab="X",ylab="Y")
+
+```
+
+### c
+```{r}
+h = c(bw.SJ(X),bw.SJ(Y))
+for(i in 1:m){
+  for (j in 1:m){
+    f[i,j] = mean(dnorm((x_grid[i]-X)/h[1])/h[1]*dnorm((y_grid[j]-Y)/h[2])/h[2])
+  }
+}
+persp(x_grid,y_grid,f,theta=30,expand=0.7,xlab="X",ylab="Y")
+```
+
+### d
+```{r}
+k = 100
+for(i in 1:m){
+  for (j in 1:m){
+    dk = sort(sqrt((x_grid[i]-X)^2+(y_grid[j]-Y)^2))[k]
+    f[i,j] = mean(exp(-0.5*(((x_grid[i]-X)/dk)^2+((y_grid[j]-Y)/dk)^2))/(2*pi))/(dk^2)
+  }
+}
+persp(x_grid,y_grid,f,theta=30,expand=0.7,xlab="X",ylab="Y")
+```
+
+The larger K, the more smooth the estimated density.
+
+### e
+```{r}
+epsilon = 0.005
+alpha = 0.5
+h = c(sd(X)*(1/length(X))^(1/6),sd(Y)*(1/length(Y))^(1/6))
+f_h = function(x){
+  m = length(x)
+  out = c()
+  for(i in 1:m){
+    out[i] = mean(dnorm((x[i]-x)/h[1])/h[1]*dnorm((Y[i]-Y)/h[2])/h[2])
+  }
+  out[out < epsilon] = epsilon
+  return(out)
+}
+g_mean = exp(mean(log(f_h(X))))
+hs = mean(h)/((f_h(X)/g_mean)^alpha)
+for(i in 1:m){
+  for (j in 1:m){
+    f[i,j] = mean(dnorm((x_grid[i]-X)/hs)*dnorm((y_grid[j]-Y)/hs)/(hs^2))
+  }
+}
+persp(x_grid,y_grid,f,theta=30,expand=0.7,xlab="X",ylab="Y")
+```
+
+
+
+## Problem 10.3
+
+### a
+As we know, $UCV(h) = R(\hat{f})-\frac{2}{n}\sum_{i=1}^n\hat{f_{-i}}(X_i)$,
+$$
+\begin{align}
+R(\hat{f}) & = \int(\hat{f}(x))^2dx \\
+& = \int(\frac{1}{hn}\sum_{i=1}^nK(\frac{x-X_i}{h}))^2dx \\
+& = \frac{1}{n^2h^2}\sum_{i=1}^n\int(K(\frac{x-X_i}{h}))^2dx + \frac{1}{n^2h^2}\sum_{i=1}^n\sum_{i\ne j}\int K(\frac{x-X_i}{h})K(\frac{x-X_j}{h})dx\\
+& = A+B,
+\end{align}
+$$
+and
+$$
+\begin{align}
+\frac{2}{n}\sum_{i=1}^n\hat{f_{-i}}(X_i) & = \frac{2}{n}\sum_{i=1}^n\frac{1}{(n-1)h} \sum_{i\ne j}K(\frac{X_i-X_j}{h}) \\
+& = \frac{2}{n(n-1)h}\sum_{i=1}^n\sum_{i\ne j}K(\frac{X_I-X_j}{h}) = C.
+\end{align}
+$$
+Then we have 
+$$
+UCV(h) = A+B+C.
+$$
+
+### b
+$$
+A = \frac{1}{n^2h^2}\sum_{i=1}^n\int(K(\frac{x-X_i}{h}))^2dx.
+$$
+Because
+$$
+\begin{align}
+\int(K(\frac{x-X_i}{h}))^2dx & = \int\frac{1}{2\pi}\exp(-\frac{(x-X_i)^2}{h^2})dx \\
+& = \frac{h}{2\pi}\int\exp(-t^2)dt \\
+& = \frac{h}{2\sqrt{\pi}},
+\end{align}
+$$
+$$
+A = \frac{1}{n^2h^2}\frac{nh}{2\sqrt{\pi}} = \frac{1}{2nh\sqrt{\pi}}.
+$$
+
+### c
+$$
+B = \frac{1}{n^2h^2}\sum_{i=1}^n\sum_{i\ne j}\int K(\frac{x-X_i}{h})K(\frac{x-X_j}{h})dx.
+$$
+Because
+$$
+\begin{align}
+\int K(\frac{x-X_i}{h})K(\frac{x-X_j}{h})dx
+& = \frac{1}{2\pi}\exp(-\frac{X^2_i+X^2_j}{2h^2}+\frac{(X_i+X_j)^2}{4h^2})\int\exp(-\frac{(x-\frac{X_i+X_j}{2})^2}{h^2})dx \\
+& = \frac{h}{2\sqrt{\pi}}\exp(-\frac{(X_i-X_j)^2}{4h^2}),
+\end{align}
+$$
+$$
+B =  \frac{1}{2n^2h\sqrt{\pi}}\sum_{i=1}^n\sum_{i\ne j}\exp(-\frac{(X_i-X_j)^2}{4h^2}).
+$$
+
+### d
+Add all the result above, and rewrite the integral with respect to $\phi$, then we get the result.
+
+
+
+
+
+
+
+
+
+

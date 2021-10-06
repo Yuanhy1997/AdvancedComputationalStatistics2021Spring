@@ -1,0 +1,371 @@
+
+
+## Problem 7.4
+For multivariate conditional distributions:
+
+The first distribution holds trivially. Then by the law of total probability, we have
+$$
+\begin{aligned}
+f\left(P_{1}, P_{2}, P_{3} |\cdot \right)
+&\propto f\left(Y_{1}, Y_{2}, Y_{3} |\cdot\right) f\left(P_{1}, P_{2}, P_{3}\right)\\
+&\propto p_1^{y_1}p_2^{y_2}p_3^{n-y_1-y_2}  p_1^{\alpha_1-1}p_2^{\alpha_2-1}p_3^{\alpha_3-1}\\
+&\propto p_1^{y_1+\alpha_1-1}p_2^{y_2+\alpha_2-1}p_3^{n-y_1-y_2+\alpha_3-1},
+\end{aligned}
+$$
+This is the form of p.d.f of $\operatorname{Dirichlet}\left(y_1+\alpha_{1}, y_2+\alpha_{2}, n-y_1-y_2+\alpha_{3}\right)$ distribution. Similarly,
+$$
+\begin{aligned}
+f(N-y_{1}-y_{2} | \cdot)
+&\propto f(N-y_1-y_2) f(Y_1+Y_2|\cdot)\\
+&\propto \frac{\lambda^{m+x}}{(m+x)!}\cdot C_n^x(p_1+p_2)^x(1-p_1-p_2)^{m}\\
+&\propto \frac{(\lambda(1-p_1-p_2))^{m}}{m!}.
+\end{aligned}
+$$
+Where $y_1+y_2 = x$ and $x+m = n$. This is the form of p.d.f of $\operatorname{Poisson}\left(\lambda\left(1-p_{1}-p_{2}\right)\right)$ distribution.
+
+For univariate conditional distributions: 
+
+Given $N,P$, $(y_1,y_2)$ has distribution proportional to $p_1^{y_1}p_2^{y_2}(1-p_1-p_2)^{(n-y_1-y_2)}$. 
+
+Given $y_2$, $y_1$ has binomial distribution with $n-y_2$ trials and probability of success $\frac{p_1}{p_1+(1-p_1-p_2)}=\frac{p_1}{1-p_2}$. 
+
+In the same way we can get the univariate conditional distribution of $y_2$. By the conclusion $\left(P_{1}, P_{2}, P_{3}\right) | \cdot \sim \operatorname { Dirichlet }\left(y_{1}+\alpha_{1}, y_{2}+\alpha_{2}, n-y_{1}-y_{2}+\alpha_{3}\right)$, $p_1,p_2$ have distribution proportional to $p_1^{y_1+\alpha_1-1}p_2^{y_2+\alpha_2-1}(1-p_1-p_2)^{n-y_1-y_2+\alpha_3-1}$. 
+
+Given $p_2$, density of $p_1/(1-p_2)$ is proportional to $\left(\frac{p_1}{1-p_2}\right)^{y_1+\alpha_1-1}\left(\frac{1-p_1-p_2}{1-p_2}\right)^{n-y_1-y_2+\alpha_3-1}$, which is $\operatorname{Beta}\left(y_1+\alpha_1,n-y_1-y_2+\alpha_3\right)$. In the same way, we can derive the other formula. In summary, we get the desired result.
+
+## Problem 7.5 
+### a
+```{r}
+data = read.table('./breastcancer.dat', header = T)
+treatment_c = data$recurtime[data$treatment==1 & data$censored==1]
+treatment_o = data$recurtime[data$treatment==1 & data$censored==0]
+control_c = data$recurtime[data$treatment == 0 & data$censored==1]
+control_o = data$recurtime[data$treatment == 0 & data$censored==0]
+plot(treatment_c, ylab = 'time until reaccurence', main = 'treatment, censored')
+plot(treatment_o, ylab = 'time until reaccurence', main = 'treatment, observed')
+plot(control_c, ylab = 'time until reaccurence', main = 'control, censored')
+plot(control_o, ylab = 'time until reaccurence', main = 'control, observed')
+```
+
+### b
+
+The conditional distribution is:
+$$
+f(\tau|\theta,y ) \propto \tau^\left(\sum \delta_{i}^{H}+b\right) \exp \left\{-\tau \theta(d+ \sum x_{i}^{H})\right\}
+$$
+$$
+f(\theta|\tau,y ) \propto \theta^{\left(a+\sum \delta_{i}^{C}+\sum \delta_{i}^{H}\right)} \exp \left\{-\theta (c+\sum x_{i}^{C})-\tau \theta(d+ \sum x_{i}^{H})\right\}
+$$
+### c
+```{r}
+library(stats)
+alpha1 = sum(data$censored[data$treatment == 1] == 0) + 1
+gamma1 = sum(data$recurtime[data$treatment == 1])
+alpha2 = length(data$treatment[data$censored == 0]) + 1
+gamma2 = sum(data$recurtime[data$treatment == 0])
+a = 3; b = 1; c = 60; d = 120
+sampler = function(p){
+  tau = rgamma(1, shape = alpha1+b, rate = p*(gamma1+d))
+  theta = rgamma(1, shape = alpha2+a, rate = gamma2+c+tau*(gamma1+d))
+  return(c(tau, theta))
+}
+Gibbs = function(n, init){
+  samples = matrix(0, nrow = n, ncol = 2)
+  samples[1,] = sampler(init)
+  for(i in 2:n){
+    samples[i,] = sampler(samples[i-1, 2])
+  }
+  return(samples)
+}
+samples = Gibbs(20000, 0.1)
+acf(samples[,1])
+acf(samples[,2])
+```
+
+According to ACF plots, the mixing and canvergence of the sampler is really good. The ACF converges to 0 really fast.
+
+### d
+As for $\tau$,
+```{r}
+m = mean(samples[,1])
+s = sd(samples[,1])
+ci = t.test(samples[,1])$conf.int
+list('mean' = m, 'standard deviation' = s, 'interval' = ci)
+```
+As for $\theta$,
+```{r}
+m = mean(samples[,2])
+s = sd(samples[,2])
+ci = t.test(samples[,2])$conf.int
+list('mean' = m, 'standard deviation' = s, 'interval' = ci)
+```
+### e
+```{r}
+sampler = function(p){
+  tau = rgamma(1, shape = b+1, rate = p*d)
+  theta = rgamma(1, shape = a+1, rate = c+tau*d)
+  return(c(tau, theta))
+}
+prior_samples = Gibbs(20000, 0.1)
+plot(density(prior_samples[,1]),type = 'l', col = 'red', xlim = c(0,6))
+lines(density(samples[,1]), col = 'blue')
+```
+
+The red line is prior distribution and the blue line is the posterior distribution.
+
+### f
+The parameter $\tau$ means the difference of the expected reccurence time between the treatment group and the control. And the estimated $\tau$ is not larger than 1, and the confidence interval is uniformly larger than 1. The recurrence times for the hormone group are not significantly different from those for the control group.
+
+### g
+Half the hyperparams:
+```{r}
+a = 3/2; b = 1/2; c = 60/2; d = 120/2
+sampler = function(p){
+  tau = rgamma(1, shape = alpha1+b, rate = p*(gamma1+d))
+  theta = rgamma(1, shape = alpha2+a, rate = gamma2+c+tau*(gamma1+d))
+  return(c(tau, theta))
+}
+samples = Gibbs(20000, 0.1)
+```
+As for $\tau$,
+```{r}
+m = mean(samples[,1])
+s = sd(samples[,1])
+ci = t.test(samples[,1])$conf.int
+list('mean' = m, 'standard deviation' = s, 'interval' = ci)
+```
+As for $\theta$,
+```{r}
+m = mean(samples[,2])
+s = sd(samples[,2])
+ci = t.test(samples[,2])$conf.int
+list('mean' = m, 'standard deviation' = s, 'interval' = ci)
+```
+Double the hyperparams:
+```{r}
+a = 3*2; b = 1*2; c = 60*2; d = 120*2
+sampler = function(p){
+  tau = rgamma(1, shape = alpha1+b, rate = p*(gamma1+d))
+  theta = rgamma(1, shape = alpha2+a, rate = gamma2+c+tau*(gamma1+d))
+  return(c(tau, theta))
+}
+samples = Gibbs(20000, 0.1)
+```
+As for $\tau$,
+```{r}
+m = mean(samples[,1])
+s = sd(samples[,1])
+ci = t.test(samples[,1])$conf.int
+list('mean' = m, 'standard deviation' = s, 'interval' = ci)
+```
+As for $\theta$,
+```{r}
+m = mean(samples[,2])
+s = sd(samples[,2])
+ci = t.test(samples[,2])$conf.int
+list('mean' = m, 'standard deviation' = s, 'interval' = ci)
+```
+It is pretty sensitive to the prior distribution. A more detailed analysis should be conducted to acquire a more approrpiate prior.
+
+## Problem 7.6
+### a
+The prior of $\lambda_i$,
+$$f(\lambda_i) \propto \int f(\lambda_i|\alpha)f(\alpha)d\alpha \propto \int \alpha^3\lambda_i^2e^{-\alpha\lambda_i}\alpha^9e^{-10\alpha}d\alpha \propto \frac{\lambda_i^2}{(\lambda_i+10)^{13}}.$$
+The marginal posteriors are:
+$$f\left(\theta | \lambda_{1}, \lambda_{2}, X\right) \propto \frac{\lambda_{1}^{2+\sum_{j=1}^{\theta} X_{j}} \lambda_{2}^{2+\sum_{j=\theta+1}^{112} X_{j}}}{(\lambda_1+10)^{13}(\lambda_2+10)^{13}} \exp \left(-\theta\left(\lambda_{1}-\lambda_{2}\right)+112\lambda_2\right)$$
+$$f\left(\lambda_{1} | \theta, \lambda_{2}, X\right) \propto \frac{\lambda_{1}^{2+\sum_{j=1}^{\theta} X_{j}}}{\left(10+\lambda_{1}\right)^{13}} \exp \left(-\theta \lambda_{1}\right)$$
+$$f\left(\lambda_{2} | \theta, \lambda_{1}, X\right) \propto \frac{\lambda_{2}^{2+\sum_{j=1+\theta}^{112} X_{j}}}{\left(10+\lambda_{2}\right)^{13}} \exp \left(-(112-\theta )\lambda_{2}\right)$$
+### b
+```{r}
+data=read.table("./coal.dat",header = TRUE)[,2]
+theta_pos = function(theta, lam1, lam2){
+  out = lam1^(2+sum(data[1:theta])) * lam2^(2+sum(data)-sum(data[1:theta])) / (10+lam1)^13 / (10+lam2)^13 * exp(-theta*(lam1-lam2)-112*lam2)
+  return(out)
+}
+sampler = function(lam1, lam2){
+  t = 1:111
+  p = sapply(t, theta_pos, lam1 = lam1, lam2 = lam2)
+  theta = sample(1:111, size = 1, prob = p/sum(p))
+  
+  alpha = 3+sum(data[1:theta])
+  lam_ = rgamma(1,shape = alpha, rate = theta)
+  ratio = (lam_/lam1)^(2+sum(data[1:theta])) * ((10+lam1)/(10+lam_))^13 * exp(-theta*(lam_-lam1)) * pgamma(lam1,shape = alpha, rate = theta) / pgamma(lam_,shape = alpha, rate = theta)
+  if (runif(1)<ratio) {lam1_o = lam_}
+  else {lam1_o = lam1}
+  
+  alpha = 3+sum(data)-sum(data[1:theta])
+  lam_ = rgamma(1,shape = alpha, rate = 112-theta)
+  ratio = (lam_/lam2)^(2+sum(data)-sum(data[1:theta])) * ((10+lam2)/(10+lam_))^13 * exp(-(112-theta)*(lam_-lam1))* pgamma(lam2,shape = alpha, rate = 112-theta) / pgamma(lam_,shape = alpha, rate = 112-theta)
+  if (runif(1)<ratio) lam2_o = lam_
+  else lam2_o = lam2
+  
+  return(c(theta, lam1_o, lam2_o))
+}
+
+Gibbs = function(lam1, lam2, n = 50000){
+  out = matrix(0, nrow = n, ncol = 3)
+  for(i in 1:n){
+    out[i,] = sampler(lam1, lam2)
+    lam1 = out[i,2]
+    lam2 = out[i,3]
+  }
+  return(out)
+}
+
+samples = Gibbs(1,1)
+
+par(mfrow=c(3,1))
+plot(samples[,1], type = "l", lwd = 0.3, main = "trace plot for theta")
+plot(samples[,2], type = "l", lwd = 0.3, main = "trace plot for lambda1")
+plot(samples[,3], type = "l", lwd = 0.3, main = "trace plot for lambda2")
+
+par(mfrow=c(3,1))
+acf(samples[,1], type = "correlation", main="ACF for theta")
+acf(samples[,2], type = "correlation", main="ACF for lambda1")
+acf(samples[,3], type = "correlation", main="ACF for lambda2")
+
+```
+
+The convergence and mixing of the sampler is not very good. It needs more steps of sampling because of the M-H step in Gibbs sampler. I complicate this problem.
+
+### c
+```{r}
+par(mfrow=c(3,1))
+hist(samples[,1])
+hist(samples[,2])
+hist(samples[,3])
+quantile(samples[,1], probs = c(0.025,0.975))
+quantile(samples[,2], probs = c(0.025,0.975))
+quantile(samples[,3], probs = c(0.025,0.975))
+```
+
+Symmetric HPD intervals appropriate for all of these parameters since all the posterior distributions are unimodal.
+
+### d
+The result is pretty reasonable. The change-point in this problem is about 40, which means the disasters follows the poisson distribution with a lambda about 3.1 for the first 40 years, and the poisson distribution with a lambda about 0.9 for the rest of years.
+
+## Problem 7.7
+## a
+$$(\mu|\boldsymbol{\alpha},\boldsymbol{\beta},\mathbf{y})\sim N(y_{ij}-\alpha_i-\beta_{j(i)},\sigma_{\epsilon}^2).$$
+Therefore,
+$$\pi(\mu | \boldsymbol{\alpha},\boldsymbol{\beta},\mathbf{y}) \propto \exp \left(-\sum_{i} \sum_{j} \frac{\left(y_{i j}-\mu-\alpha_{i}-\beta_{j(i)}\right)^{2}}{2 \sigma_{\epsilon}^{2}}\right) \propto N\left(y_{. .}-\frac{1}{n} \sum_{i} J_{i} \alpha_{i}-\frac{1}{n} \sum_{j} \beta_{j(i)}, \frac{\sigma_{\epsilon}^{2}}{n}\right).$$
+Similarly, we can derive that
+$$\pi\left(\alpha_{i} | \mu, \boldsymbol{\beta},\mathbf{y}\right) \propto \exp \left(-\frac{\alpha_{i}^{2}}{2 \sigma_{\alpha}^{2}}\right) * \exp \left(-\sum_{j} \frac{\left(y_{i j}-\mu-\alpha_{i}-\beta_{j(i)}\right)^{2}}{2 \sigma_{\epsilon}^{2}}\right) \propto N\left(\frac{J_{i} V_{1}}{\sigma_{\epsilon}^{2}}\left(y_{i}-\mu-\frac{1}{J_{i}} \sum_{j} \beta_{j(i)}\right), V_{1}\right),$$
+$$\pi\left(\beta_{j(i)} | \mu,\boldsymbol{\alpha}, \mathbf{y}\right) \propto \exp \left(-\frac{\beta_{j(i)}^{2}}{2 \sigma_{\beta}^{2}}\right) * \exp \left(-\frac{\left(y_{i j}-\mu-\alpha_{i}-\beta_{j(i)}\right)^{2}}{2 \sigma_{\epsilon}^{2}}\right) \propto N\left(\frac{V_{2}}{\sigma_{\epsilon}^{2}}\left(y_{i j}-\mu-\alpha_{i}\right), V_{2}\right).$$
+
+## b
+Similar to the method in (a), we have
+$$\pi(\mu | \boldsymbol{\gamma}, \boldsymbol{\eta}, \mathbf{y}) \propto \exp \left(-\sum_{i} \frac{\left(\gamma_{i}-\mu\right)^{2}}{2 \sigma_{\alpha}^{2}}\right) \propto N\left(\frac{1}{I} \sum_{i} \gamma_{i}, \frac{1}{I} \sigma_{\alpha}^{2}\right),$$
+$$\pi\left(\gamma_{i} | \mu, \boldsymbol{\eta}, \mathbf{y}\right) \propto \exp \left(-\frac{\left(\gamma_{i}-\mu\right)^{2}}{2 \sigma_{\alpha}^{2}}\right) \cdot \exp \left(-\sum_{j} \frac{\left(\eta_{i j}-\gamma_{i}\right)^{2}}{2 \sigma_{\beta}^{2}}\right) \propto N\left(V_{3}\left(\frac{1}{\sigma_{\beta}^{2}} \sum_{j} \eta_{i j}+\frac{\mu}{\sigma_{\alpha}^{2}}\right), V_{3}\right),$$
+$$\pi\left(\eta_{i j} | \mu, \boldsymbol{\gamma}, \mathbf{y}\right) \propto \exp \left(-\frac{\left(\eta_{i j}-\gamma_{i}\right)^{2}}{2 \sigma_{\beta}^{2}}\right) \cdot \exp \left(-\frac{\left(y_{i j}-\eta_{i j}\right)^{2}}{2 \sigma_{\epsilon}^{2}}\right) \propto N\left(V_{2}\left(\frac{y_{i j}}{\sigma_{\epsilon}^{2}}+\frac{\gamma_{i}}{\sigma_{\beta}^{2}}\right), V_{2}\right).$$
+Therefore we can implement the Gibbs sampling as the expressions above.
+
+## Problem 7.8
+### a
+```{r}
+data = read.table('./pigment.dat',header = T)
+n = 10000
+burnin = 100
+mu = c();mu[1] = 1
+alpha = matrix(0,nrow = n+1,ncol = 15)
+beta = array(0, dim=c(n+1,15,2))
+
+s_alpha = 86;s_beta = 58;s_eps = 1
+y_m = mean(data$Moisture)
+yi_m = (data$Moisture[data$Sample == 1]+data$Moisture[data$Sample == 2])/2
+V1 = 1/(2/s_eps+1/s_alpha);V2 = 1/(1/s_eps+1/s_beta)
+
+
+for (i in 1:n) {
+  mu[i+1] = rnorm(1, y_m-2*sum(alpha[i,])/30-sum(beta[i,,])/30, s_eps/sqrt(30))
+  alpha[i+1,] = rnorm(15, 2*V1/s_eps*(yi_m-mu[i+1]-1/2*(beta[i,,1]+beta[i,,2])), V1)
+  beta[i+1,,1] = rnorm(15, V2/s_eps*(data$Moisture[data$Sample == 1]-mu[i+1]-alpha[i+1,]), V2)
+  beta[i+1,,2] = rnorm(15, V2/s_eps*(data$Moisture[data$Sample == 2]-mu[i+1]-alpha[i+1,]), V2)
+}
+#mean of mu
+mean(mu[burnin:(n+1)])
+#means of alpha
+apply(alpha[burnin:(n+1),],2,mean)
+#means of beta1
+apply(beta[burnin:(n+1),,1],2,mean)
+#means of beta2
+apply(beta[burnin:(n+1),,2],2,mean)
+```
+
+### b
+```{r}
+gamma = matrix(0,nrow = n+1,ncol = 15)
+eta = array(0, dim=c(n+1,15,2)) 
+mu2 = c();mu2[1] = 1
+V3 = 1/(2/s_beta+1/s_alpha)
+for (i in 1:n) {
+  mu2[i+1] = rnorm(1,1/15*sum(gamma[i,]),1/15*s_alpha)
+  gamma[i+1,] = rnorm(15,V3*(1/s_beta*(eta[i,,1]+eta[i,,2])+mu2[i+1]/s_alpha),V3)
+  eta[i+1,,1] = rnorm(15,V2*(data$Moisture[data$Sample == 1]/s_eps+gamma[i+1,]/s_beta),V2)
+  eta[i+1,,2] = rnorm(15,V2*(data$Moisture[data$Sample == 2]/s_eps+gamma[i+1,]/s_beta),V2)
+}
+#mean of mu
+mean(mu2[burnin:(n+1)])
+#means of gamma
+apply(gamma[burnin:(n+1),],2,mean)
+#means of eta1
+apply(eta[burnin:(n+1),,1],2,mean)
+#means of eta2
+apply(eta[burnin:(n+1),,2],2,mean)
+
+```
+
+### c
+```{r}
+par(mfrow = c(2,2))
+acf(mu)
+acf(alpha[,1])
+acf(beta[,1,1])
+acf(beta[,1,2])
+```
+
+```{r}
+par(mfrow = c(2,2))
+acf(mu2)
+acf(gamma[,1])
+acf(eta[,1,1])
+acf(eta[,1,2])
+```
+
+```{r}
+length(burnin:(n+1))/(2*sum((acf(mu[burnin:(n+1)],plot = F))$acf)+1)
+length(burnin:(n+1))/(2*sum((acf(alpha[burnin:(n+1),1],plot = F))$acf)+1)
+length(burnin:(n+1))/(2*sum((acf(beta[burnin:(n+1),1,1],plot = F))$acf)+1)
+length(burnin:(n+1))/(2*sum((acf(beta[burnin:(n+1),1,2],plot = F))$acf)+1)
+```
+
+```{r}
+length(burnin:(n+1))/(2*sum((acf(mu2[burnin:(n+1)],plot = F))$acf)+1)
+length(burnin:(n+1))/(2*sum((acf(gamma[burnin:(n+1),1],plot = F))$acf)+1)
+length(burnin:(n+1))/(2*sum((acf(eta[burnin:(n+1),1,1],plot = F))$acf)+1)
+length(burnin:(n+1))/(2*sum((acf(eta[burnin:(n+1),1,2],plot = F))$acf)+1)
+```
+
+Overall, comparing the ACF plot and the efficient sample size, the second method is much better.
+
+
+
+## Problem 7.9
+Because $U_1 = \log\theta_1, U_2 = \log\theta_2$. We already have $\alpha_{i} | \cdot \sim \operatorname{Beta}\left(c_{i}+\theta_{1}, N-c_{i}+\theta_{2}\right)$ in the text book. Therefore, we have $$\alpha_{i} | \cdot \sim \operatorname{Beta}\left(c_{i}+\exp \left\{u_{1}\right\}, N-c_{i}+\exp \left\{u_{2}\right\}\right)$$.
+
+We also have $\theta_{1}, \theta_{2} | \cdot \sim k\left[\frac{\Gamma\left(\theta_{1}+\theta_{2}\right)}{\Gamma\left(\theta_{1}\right) \Gamma\left(\theta_{2}\right)}\right]^{7} \prod_{i=1}^{7} \alpha_{i}^{\theta_{1}}\left(1-\alpha_{i}\right)^{\theta_{2}} \exp \left\{-\frac{\theta_{1}+\theta_{2}}{1000}\right\}$ in the text bool. Replacing $\theta_1$ and $\theta_2$ with $U_1$ and $U_2$ and using the Jacobian $\left|\frac{\partial\left(\theta_{1}, \theta_{2}\right)}{\partial\left(u_{1}, u_{2}\right)}\right|=\exp \left(u_{1}+u_{2}\right)$, we have 
+$$\begin{aligned}
+U_{1}, U_{2} | \cdot \sim &k_{u} \exp \left\{u_{1}+u_{2}\right\}\left[\frac{\Gamma\left(\exp \left\{u_{1}\right\}+\exp \left\{u_{2}\right\}\right)}{\Gamma\left(\exp \left\{u_{1}\right\}\right) \Gamma\left(\left\{\exp \left\{u_{2}\right\}\right)\right.}\right]^{7} \\
+&\times \prod_{i=1}^{7} \alpha_{i}^{\exp \left\{u_{1}\right\}}\left(1-\alpha_{i}\right)^{\exp \left\{u_{2}\right\}} \exp \left\{-\frac{\exp \left\{u_{1}\right\}+\exp \left\{u_{2}\right\}}{1000}\right\},
+\end{aligned}$$
+therefore, both distributions are proved.
+
+
+
+
+
+
+
+
+
+

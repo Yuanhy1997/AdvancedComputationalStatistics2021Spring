@@ -1,0 +1,612 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+## Problem 2.3
+### c
+```{r,warning=FALSE}
+data = read.table('leukemia.dat', header = T)
+t = data$remissiontime
+w = 1-data$censored
+delta = as.integer(data$group=='treatment')
+likelihood = function(x){
+  -sum(w*log(x[1])+w*(x[1]-1)*log(t)+w*(x[2]+delta*x[3])-
+t^x[1]*exp(x[2]+delta*x[3]))
+}
+#newton
+nlm(likelihood, c(1,1,1))$estimate
+#quasi-newton
+optim(c(1,1,1), likelihood, method = "BFGS")$par
+```
+Under two method the results are the same $(a,b_0,b_1)=(1.365766,-3.070758,-1.730859)$.
+
+### d
+```{r,warning=FALSE}
+loglike = expression(w*log(a)+w*(a-1)*log(t)+w*(b0+delta*b1)-t^a*exp(b0+delta*b1))
+dev2 = matrix(c(D(D(loglike, 'a'), 'a'),D(D(loglike, 'a'), 'b0'),D(D(loglike, 'a'), 'b1'), 
+                  D(D(loglike, 'b0'), 'a'),D(D(loglike, 'b0'), 'b0'),D(D(loglike, 'b0'), 'b1'),
+                  D(D(loglike, 'b1'), 'a'),D(D(loglike, 'b1'), 'b0'),D(D(loglike, 'b1'), 'b1'))
+                ,byrow = T,nrow=3)
+a=1.365766;b0=-3.070758;b1=-1.730859
+fisher = matrix(0,3,3)
+for (i in 1:3){
+  for (j in 1:3){
+    fisher[i,j] = -sum(eval(dev2[[i,j]]))
+  }
+}
+sqrt(diag(solve(fisher)))
+solve(fisher)
+```
+The standard errors are $se(a,b_0,b_1)=(0.2012,0.5581,0.4131)$. $a$ is highly correlated with $b_0$.
+
+### e
+```{r,warning=FALSE}
+seidle = function(init = c(1,1,1), epsilon = 0.00001){
+  a = init[1];b0 = init[2];b1 = init[3]
+  max = sum(eval(loglike))
+  count = 1
+  while(T){
+    a = a - sum(eval(D(loglike, 'a'))) / sum(eval(D(D(loglike, 'a'), 'a')))
+    if(abs(sum(eval(loglike))-max)<epsilon){break}
+    else{max = sum(eval(loglike));count=count+1}
+    b0 = b0 - sum(eval(D(loglike, 'b0'))) / sum(eval(D(D(loglike, 'b0'), 'b0')))
+    if(abs(sum(eval(loglike))-max)<epsilon){break}
+    else{max = sum(eval(loglike));count=count+1}
+    b1 = b1 - sum(eval(D(loglike, 'b1'))) / sum(eval(D(D(loglike, 'b1'), 'b1')))
+    if(abs(sum(eval(loglike))-max)<epsilon){break}
+    else{max = sum(eval(loglike));count=count+1}
+  }
+  return(c(a,b0,b1,count))
+}
+seidle()
+```
+The implementation this method is easier because it does not need to calculate Hessian matrix and its inverse which are time-consuming, while it needs more iterations steps. When the dimension goes high, Seidle method is more efficient. And it is more sensitive to start points.
+
+### f
+```{r,warning=FALSE}
+discrete = function(init, epsilon = 0.0001, h = 0.01){
+  max = sum(eval(loglike))
+  a = init[1];b0 = init[2];b1 = init[3]
+  count = 1
+  g1 = c(sum(eval(D(loglike, 'a'))), 
+                sum(eval(D(loglike, 'b0'))), 
+                sum(eval(D(loglike, 'b1'))))
+  a = a+h;b0 = b0+h;b1 = b1+h
+  M = (diag(g1) + diag(c(sum(eval(D(loglike, 'a'))), 
+            sum(eval(D(loglike, 'b0'))), 
+            sum(eval(D(loglike, 'b1'))))))/h
+  result = c(a-h,b0-h,b1-h) - solve(M)%*%g1
+  a = result[1];b0 = result[2];b1 = result[3]
+  while(abs(sum(eval(loglike))-max)>epsilon){
+    count = count+1
+    max = sum(eval(loglike))
+    g1 = c(sum(eval(D(loglike, 'a'))), 
+                sum(eval(D(loglike, 'b0'))), 
+                sum(eval(D(loglike, 'b1'))))
+    a = a+h;b0 = b0+h;b1 = b1+h
+    M = (diag(g1) + diag(c(sum(eval(D(loglike, 'a'))), 
+              sum(eval(D(loglike, 'b0'))), 
+              sum(eval(D(loglike, 'b1'))))))/h
+    result = c(a-h,b0-h,b1-h) - solve(M)%*%g1
+    a = result[1];b0 = result[2];b1 = result[3]
+  }
+  return(c(a,b0,b1,'step' = count))
+}
+discrete(c(1,1,1))
+```
+This method harvest the same result. But when it starts from (-1,-1,1), the algorithm fails because M is not singular anymore. Therefore it is sensitive to start points. And the convegence speed relies much on the selection of $h$, when $h$ is small, it can be relatively slow.
+
+
+## Problem 2.5
+### e
+Apply steepest ascent with step halving.
+```{r,warning=FALSE}
+data = read.table("./oilspills.dat", header = T)
+f = function(a1, a2){
+  lambda = a1*data$importexport+a2*data$domestic
+  return(sum(data$spills*log(lambda)-lambda-log(factorial(data$spills))))
+}
+dev1 = function(a1, a2){
+  c(sum(data$spills*data$importexport / (a1*data$importexport+a2*data$domestic) - data$importexport), sum(data$spills*data$domestic / (a1*data$importexport+a2*data$domestic) - data$domestic))
+}
+dev2 = function(a1, a2){
+     matrix(c(
+        -sum(data$spills*data$importexport^2 / (a1*data$importexport+a2*data$domestic)^2),
+        -sum(data$spills*data$importexport*data$domestic / (a1*data$importexport+a2*data$domestic)^2),
+        -sum(data$spills*data$domestic^2 / (a1*data$importexport+a2*data$domestic)^2),
+        -sum(data$spills*data$importexport*data$domestic / (a1*data$importexport+a2*data$domestic)^2)
+     ), nrow = 2, byrow = T)
+}
+fisherInfo = function(a1, a2){
+     matrix(c(
+        sum(data$importexport^2 / (a1*data$importexport+a2*data$domestic)),
+        sum(data$importexport*data$domestic / (a1*data$importexport+a2*data$domestic)),
+        sum(data$domestic^2 / (a1*data$importexport+a2*data$domestic)),
+        sum(data$importexport*data$domestic / (a1*data$importexport+a2*data$domestic))
+     ), nrow = 2, byrow = T)
+}
+steepest = function(init = c(1,1), alpha = 0.01, max_iter = 300, epsilon = 0.0001, plot = F){
+  x1 = init
+  x2 = x1 + alpha * dev1(x1[1], x1[2])
+  count = 1
+  if(plot) {
+    a1 = seq(0,3,length.out = 500)
+    a2 = seq(0,3,length.out = 500)
+    l = matrix(0,nrow = length(a1),ncol = length(a2))
+    for (i in 1:length(a1)){
+      for (j in 1:length(a2)){
+        l[i,j] = f(a1[i],a2[j])
+      }
+    }
+    contour(a1,a2,l,nlevels=80,drawlabels = F,main = "Contour Plot of Steepest Ascend")
+    segments(x1[1],x1[2],x2[1],x2[2],lty=3,col='red')
+  }
+  if(f(x2[1], x2[2])<f(x1[1], x1[2])) alpha = alpha/2
+  while(count < max_iter && sqrt(sum((x1-x2)^2)) > epsilon){
+    x1 = x2
+    x2 = x1 + alpha * dev1(x1[1], x1[2])
+    if(plot) segments(x1[1],x1[2],x2[1],x2[2],lty=3,col='red')
+    if(f(x2[1], x2[2])<f(x1[1], x1[2])) alpha = alpha/2
+    count = count + 1
+  }
+  if(!plot) return(c('x'=x2[1], 'y' = x2[2], 'step' = count))
+}
+steepest(c(2.5,2.5))
+```
+
+### f
+```{r}
+cal_m = function(m,x1,x2,eps=10^-5){
+  z = x2-x1
+  y = dev1(x2[1], x2[2]) - dev1(x1[1], x1[2])
+  v = y - m%*%z
+  c = 1/sum(v*z)
+  if(abs(sum(v*z))<eps){
+    return(m)
+  }
+  else if(c < 0 && prod(eigen(-m)$values>0)==1){
+    m = m+c*(v%*%t(v))
+    return(m)
+  }
+  else if(c > 0 && prod(eigen(-m)$values>0)==1){
+    m_b = m+c*(v%*%t(v))
+    while(prod(eigen(-m_b)$values>0)==0){
+      c = c/2
+      m_b = m+c*v%*%t(v)
+    }
+    return(m_b)
+  }
+  else{
+    m = m+c*(v%*%t(v))
+    return(m)
+  }
+}
+
+quasi_newton = function(init = c(1,1), alpha = 0.1, max_iter = 3000, epsilon = 0.0001, half=T, plot = F){
+  x1 = init
+  m = diag(c(1,2))
+  x2 = x1 + alpha * solve(-m) %*% dev1(x1[1], x1[2])
+  count = 1
+  if(plot) {
+    a1 = seq(0,3,length.out = 500)
+    a2 = seq(0,3,length.out = 500)
+    l = matrix(0,nrow = length(a1),ncol = length(a2))
+    for (i in 1:length(a1)){
+      for (j in 1:length(a2)){
+        l[i,j] = f(a1[i],a2[j])
+      }
+    }
+    contour(a1,a2,l,nlevels=80,drawlabels = F,main = "Contour Plot of Quasi-Newton")
+    segments(x1[1],x1[2],x2[1],x2[2],lty=3,col='red')
+  }
+  if(f(x2[1], x2[2])<f(x1[1], x1[2]) && half) alpha = alpha/2
+  else alpha = alpha
+  while(count < max_iter && sqrt(sum((x1-x2)^2)) > epsilon){
+    m = cal_m(m, x1,x2)
+    x1 = x2
+    x2 = x1 + alpha * solve(-m) %*% dev1(x1[1], x1[2])
+    if(plot) segments(x1[1],x1[2],x2[1],x2[2],lty=3,col='red')
+    if(f(x2[1], x2[2])<f(x1[1], x1[2]) && half) alpha = alpha/2
+    else alpha = alpha
+    count = count + 1
+  }
+  if(!plot) return(c('x'=x2[1], 'y' = x2[2], 'step' = count))
+}
+
+quasi_newton(c(2.5,2.5))
+quasi_newton(c(2.5,2.5), half = F)
+```
+The algorithm converge faster without step halving, because the initial points is pretty close to the optima and the area is pretty smooth. Then taking bigger steps can ensure fewer iterations.
+
+### g
+```{r}
+newton = function(init = c(10,10), max_iter = 300, epsilon = 0.001, plot = F){
+  x1 = init
+  x2 = x1 - solve(dev2(x1[1], x1[2])) %*% dev1(x1[1], x1[2])
+  count = 1
+  if(plot) {
+    a1 = seq(0,3,length.out = 500)
+    a2 = seq(0,3,length.out = 500)
+    l = matrix(0,nrow = length(a1),ncol = length(a2))
+    for (i in 1:length(a1)){
+      for (j in 1:length(a2)){
+        l[i,j] = f(a1[i],a2[j])
+      }
+    }
+    contour(a1,a2,l,nlevels=80,drawlabels = F,main = "Contour Plot of Newton")
+    segments(x1[1],x1[2],x2[1],x2[2],lty=3,col='red')
+  }
+  while(count < max_iter && sqrt(sum((x1-x2)^2)) > epsilon){
+    x1 = x2
+    x2 = x1 - solve(dev2(x1[1], x1[2])) %*% dev1(x1[1], x1[2])
+    if(plot) segments(x1[1],x1[2],x2[1],x2[2],lty=3,col='red')
+    count = count + 1
+  }
+  if(!plot) return(c('x'=x2[1], 'y' = x2[2], 'step' = count))
+}
+fisher = function(init = c(10,10), max_iter = 300, epsilon = 0.0001, plot = F){
+  x1 = init
+  x2 = x1 + solve(fisherInfo(x1[1], x1[2])) %*% dev1(x1[1], x1[2])
+  count = 1
+  if(plot) {
+    a1 = seq(0,3,length.out = 500)
+    a2 = seq(0,3,length.out = 500)
+    l = matrix(0,nrow = length(a1),ncol = length(a2))
+    for (i in 1:length(a1)){
+      for (j in 1:length(a2)){
+        l[i,j] = f(a1[i],a2[j])
+      }
+    }
+    contour(a1,a2,l,nlevels=80,drawlabels = F,main = "Contour Plot of Fisher")
+    segments(x1[1],x1[2],x2[1],x2[2],lty=3,col='red')
+  }
+  while(count < max_iter && sqrt(sum((x1-x2)^2)) > epsilon){
+    x1 = x2
+    x2 = x1 + solve(fisherInfo(x1[1], x1[2])) %*% dev1(x1[1], x1[2])
+    if(plot) segments(x1[1],x1[2],x2[1],x2[2],lty=3,col='red')
+    count = count + 1
+  }
+  if(!plot) return(c('x'=x2[1], 'y' = x2[2], 'step' = count))
+}
+
+newton(c(2,2), plot=T)
+fisher(c(2.5,2.5), plot=T)
+quasi_newton(c(2.5,2.5), plot=T)
+steepest(c(2.5,2.5), plot=T)
+```
+As the plots show, the fisher scoring and steepest ascent method are more stable.
+
+## Problem 2.6
+### a
+```{r}
+data = read.table("flourbeetles.dat",header=T)
+days = data$days
+pred = expression(2*K/(2+(K-2)*exp(-r*days)))
+dev1 = c(D(pred, 'K'), D(pred, 'r'))
+dev2 = matrix(c(D(D(pred, 'K'), 'K'), D(D(pred, 'K'), 'r'),
+                D(D(pred, 'r'), 'K'), D(D(pred, 'r'), 'r')), nrow = 2, byrow = T)
+gauss = function(init_point = c(1000,0.1), max_iter = 300, epsilon = 0.0001){
+  K = init_point[1];r = init_point[2]
+  f = eval(pred)
+  f1 = matrix(c(eval(dev1[[1]]), eval(dev1[[2]])), byrow=F, nrow = 10)
+  y = data$beetles - f + f1%*%c(K, r)
+  x = solve(t(f1)%*%f1)%*%t(f1)%*%y
+  count = 1
+  while(count < max_iter &&sqrt(sum((c(K,r)-x)^2))>epsilon){
+    K = x[1];r = x[2]
+    f = eval(pred)
+    f1 = matrix(c(eval(dev1[[1]]), eval(dev1[[2]])), byrow=F, nrow = 10)
+    y = data$beetles - f + f1%*%c(K, r)
+    x = solve(t(f1)%*%f1)%*%t(f1)%*%y
+    count = count + 1
+  }
+  
+  return(c('K'=x[1], 'r' = x[2], 'step' = count))
+}
+gauss(c(1000,0.1))
+```
+
+### b
+```{r}
+nt = data$beetles
+mse = expression((nt - 2*K/(2+(K-2)*exp(-r*days)))^2)
+msedev1 = c(D(mse, 'K'), D(mse, 'r'))
+msedev2 = matrix(c(D(D(mse, 'K'), 'K'), D(D(mse, 'K'), 'r'),
+                D(D(mse, 'r'), 'K'), D(D(mse, 'r'), 'r')), nrow = 2, byrow = T)
+newton = function(init = c(1000,0.1), max_iter = 300, epsilon = 0.0001){
+  x1 = init
+  K = x1[1];r = x1[2]
+  f1 = c(sum(eval(msedev1[[1]])), sum(eval(msedev1[[2]])))
+  f2 = matrix(c(sum(eval(msedev2[[1,1]])), sum(eval(msedev2[[1,2]])),
+                sum(eval(msedev2[[2,1]])), sum(eval(msedev2[[2,2]]))), byrow=T, nrow = 2)
+  x2 = x1 - solve(f2)%*%f1
+  count = 1
+  while(count < max_iter && sqrt(sum((x1-x2)^2)) > epsilon){
+    x1 = x2
+    K = x1[1];r = x1[2]
+    f1 = c(sum(eval(msedev1[[1]])), sum(eval(msedev1[[2]])))
+    f2 = matrix(c(sum(eval(msedev2[[1,1]])), sum(eval(msedev2[[1,2]])),
+                  sum(eval(msedev2[[2,1]])), sum(eval(msedev2[[2,2]]))), byrow=T, nrow = 2)
+    x2 = x1 - solve(f2)%*%f1
+    count = count + 1
+  }
+  return(c('K'=x2[1], 'r' = x2[2], 'step' = count))
+}
+newton(c(1000,0.1))
+```
+
+### c
+Under lognormality assumption, we have the likelihood function
+$$
+l\left(r, K, \sigma^{2}\right)=-\frac{T}{2} \log 2 \pi \sigma^{2}-\frac{1}{2 \sigma^{2}} \sum_{t=1}^{T}\left(\log N_{t}-\log f(t)\right)^{2},
+$$
+which is to minimize
+$$
+\sum_{t=1}^{T}\left(\log N_{t}-\log f(t)\right)^{2},
+$$
+because the optimal value of $K,r$ is independent of $\sigma$ in the problem, and the $\sigma$ can be estimated afterwards and omitted for now.
+```{r}
+data = read.table("flourbeetles.dat",header=T)
+days = data$days
+pred = expression(log(2*K/(2+(K-2)*exp(-r*days))))
+dev1 = c(D(pred, 'K'), D(pred, 'r'))
+dev2 = matrix(c(D(D(pred, 'K'), 'K'), D(D(pred, 'K'), 'r'),
+                D(D(pred, 'r'), 'K'), D(D(pred, 'r'), 'r')), nrow = 2, byrow = T)
+
+## Gauss-Newton method
+gauss = function(init_point = c(1000,0.1), max_iter = 300, epsilon = 0.0001){
+  K = init_point[1];r = init_point[2]
+  f = eval(pred)
+  f1 = matrix(c(eval(dev1[[1]]), eval(dev1[[2]])), byrow=F, nrow = 10)
+  y = log(data$beetles) - f + f1%*%c(K, r)
+  x = solve(t(f1)%*%f1)%*%t(f1)%*%y
+  count = 1
+  while(count < max_iter &&sqrt(sum((c(K,r)-x)^2))>epsilon){
+    K = x[1];r = x[2]
+    f = eval(pred)
+    f1 = matrix(c(eval(dev1[[1]]), eval(dev1[[2]])), byrow=F, nrow = 10)
+    y = log(data$beetles) - f + f1%*%c(K, r)
+    x = solve(t(f1)%*%f1)%*%t(f1)%*%y
+    count = count + 1
+  }
+  
+  return(c('K'=x[1], 'r' = x[2], 'step' = count))
+}
+gauss(c(800,0.1))
+
+
+## Newton-Raphson method
+nt = data$beetles
+mse = expression((log(nt) - log(2*K/(2+(K-2)*exp(-r*days))))^2)
+msedev1 = c(D(mse, 'K'), D(mse, 'r'))
+msedev2 = matrix(c(D(D(mse, 'K'), 'K'), D(D(mse, 'K'), 'r'),
+                D(D(mse, 'r'), 'K'), D(D(mse, 'r'), 'r')), nrow = 2, byrow = T)
+newton = function(init = c(1000,0.1), max_iter = 300, epsilon = 0.0001){
+  x1 = init
+  K = x1[1];r = x1[2]
+  f1 = c(sum(eval(msedev1[[1]])), sum(eval(msedev1[[2]])))
+  f2 = matrix(c(sum(eval(msedev2[[1,1]])), sum(eval(msedev2[[1,2]])),
+                sum(eval(msedev2[[2,1]])), sum(eval(msedev2[[2,2]]))), byrow=T, nrow = 2)
+  x2 = x1 - solve(f2)%*%f1
+  count = 1
+  while(count < max_iter && sqrt(sum((x1-x2)^2)) > epsilon){
+    x1 = x2
+    K = x1[1];r = x1[2]
+    f1 = c(sum(eval(msedev1[[1]])), sum(eval(msedev1[[2]])))
+    f2 = matrix(c(sum(eval(msedev2[[1,1]])), sum(eval(msedev2[[1,2]])),
+                  sum(eval(msedev2[[2,1]])), sum(eval(msedev2[[2,2]]))), byrow=T, nrow = 2)
+    x2 = x1 - solve(f2)%*%f1
+    count = count + 1
+  }
+  return(c('K'=x2[1], 'r' = x2[2], 'step' = count))
+}
+newton(c(800,0.1))
+
+
+## fisher-information-matrix
+## estimate of sigma^2
+
+K = 820.3584989; r = 0.1926205
+sigma2 = sum(eval(mse)) / 10
+loglikeli = expression( -10/2*log(2*pi*sigma2)-(log(nt) - log(2*K/(2+(K-2)*exp(-r*days))))^2/sigma2/2)
+fisher = matrix(c(D(D(loglikeli, 'K'), 'K'), D(D(loglikeli, 'K'), 'r'),
+                D(D(loglikeli, 'r'), 'K'), D(D(loglikeli, 'r'), 'r')), nrow = 2, byrow = T)
+cov = matrix(c(sum(eval(fisher[[1,1]])), sum(eval(fisher[[1,2]])),
+              sum(eval(fisher[[2,1]])),sum(eval(fisher[[2,2]])))
+             , byrow=T, nrow = 2)
+solve(-cov)
+sqrt(diag(solve(-cov)))
+```
+The result from Newton-Raphson and Gauss-Newton are the same, $(K,r)= (820.3584989, 0.1926205)$, and Newton-Raphson is a faster.\\
+The standard error is $se(K,r) = (249.6975,0.06304)$. These are relatively small camparing with their corresponding estimated value. The covariance is also small and can be neglected.
+
+## Problem 3.1
+### a
+```{r}
+data = read.table("baseball.dat",header=T)
+y = log(data$salary)
+x = data[,-1]
+
+random_first = function(num_round = 5, max_iter = 100){
+  aic_process = list()
+  for(i in 1:num_round){
+    aic_one_round = c()
+    varibles = rbinom(1:length(x[1,]), 1, 0.5)
+    model = lm(y~. , x[, varibles==1])
+    aic = extractAIC(model)[2]
+    aic_one_round[1] = aic
+    for(j in 2:max_iter){
+      for(k in sample(1:length(x[1,]),length(x[1,]))){
+        buffer = varibles
+        buffer[k] = abs(buffer[k]-1)
+        model = lm(y~., x[, buffer==1])
+        aic_buffer = extractAIC(model)[2]
+        if(aic_buffer < aic){
+          varibles = buffer
+          aic = aic_buffer
+          aic_one_round[j] = aic
+          break
+        }
+      }
+      if(aic_one_round[j-1] == aic) break
+    }
+    aic_process[[i]] = aic_one_round
+  }
+  return(aic_process)
+}
+
+result = random_first()
+plot_result = function(result){
+  all_step = 0
+  for(i in 1:length(result)){
+    all_step = all_step + length(result[[i]])
+  }
+  plot(1:all_step,1:all_step,xlab="Cumulative Iterations", ylab="Negative AIC",ylim=c(100,430),type="n")
+  all_step = 0
+  for(i in 1:length(result)){
+    lines(all_step+(1:length(result[[i]])) , -c(result[[i]]) )
+    all_step = all_step + length(result[[i]])
+  } 
+}
+plot_result(result)
+```
+
+
+
+### b
+```{r}
+gen_index = function(){
+  out = list()
+  k = 1
+  for(i in 1:length(x[1,])){
+    for(j in 1:length(x[1,])){
+      if (i!=j){
+        out[[k]] = c(i, j)  
+        k = k+1
+      }
+    }
+  }
+  return(out)
+}
+random_first_2change = function(num_round = 5, max_iter = 100){
+  aic_process = list()
+  for(i in 1:num_round){
+    aic_one_round = c()
+    varibles = rbinom(1:length(x[1,]), 1, 0.5)
+    model = lm(y~. , data = x[, varibles==1])
+    aic = extractAIC(model)[2]
+    aic_one_round[1] = aic
+    for(j in 2:max_iter){
+      aic_buffer = c()
+      index = sample(gen_index(),(length(x[1,])-1)*length(x[1,]))
+      count = 1
+      for(k in index){
+        buffer = varibles
+        buffer[k[1]] = abs(buffer[k[1]]-1)
+        buffer[k[2]] = abs(buffer[k[2]]-1)
+        if(sum(buffer)>1) {
+          model = lm(y~., data = x[, buffer==1])
+          aic_buffer[count] = extractAIC(model)[2]
+          count = count + 1
+        }
+      }
+      aic = min(aic_buffer)
+      ind = which.min(aic_buffer)
+      varibles[index[[ind]][1]] = abs(varibles[index[[ind]][1]]-1)
+      varibles[index[[ind]][2]] = abs(varibles[index[[ind]][2]]-1)
+      if(aic_one_round[j-1] <= aic) break
+      aic_one_round[j] = aic
+    }
+    aic_process[[i]] = aic_one_round
+  }
+  return(aic_process)
+}
+
+result2 = random_first_2change()
+plot_result(result2)
+```
+As we can see from the plot, the algorithm need less iteration to converge when using 2 changes of neighbors. However, whening using 2 changes, the algorithm takes more time, because more AIC is required to compute within each iteration. Two algorithms has similar results.
+
+## Problem 3.6
+### a
+```{r}
+data = read.table("geneticmapping.dat",header=T)
+loglike = function(order, eps = 1e-8){
+  adjecent_pairs = c()
+  for(i in 2:length(data[1,])){
+    d = mean(abs(data[,order[i-1]]-data[,order[i]]))
+    adjecent_pairs[i-1] = d * log(d+eps) + (1-d) * log(1-d+eps)
+  }
+  return(length(data[,1])*sum(adjecent_pairs))
+}
+
+
+gen_index = function(){
+  out = list()
+  k = 1
+  for(i in 1:length(data[1,])){
+    for(j in 1:length(data[1,])){
+      if (i!=j){
+        out[[k]] = c(i, j)  
+        k = k+1
+      }
+    }
+  }
+  return(out)
+}
+
+x = data
+local_search  = function(num_round = 200, max_iter = 40, steepest = F){
+  logl_process = c()
+  result_index = list()
+  for(i in 1:num_round){
+    logl_one_round = c()
+    varibles = sample(1:length(x[1,]), length(x[1,]))
+    logl = loglike(varibles)
+    logl_one_round[1] = logl
+    for(j in 2:max_iter){
+      logl_buffer = c()
+      if(steepest) index = sample(gen_index(),(length(x[1,])-1)*length(x[1,]))
+      else index = sample(gen_index(),20)
+      count = 1
+      for(k in index){
+        buffer = varibles
+        temp = buffer[k[1]]
+        buffer[k[1]] = buffer[k[2]]
+        buffer[k[2]] = temp
+        logl_buffer[count] = loglike(buffer)
+        count = count + 1
+      }
+      logl = max(logl_buffer)
+      ind = which.max(logl_buffer)
+      temp = varibles[index[[ind]][1]]
+      varibles[index[[ind]][1]] = varibles[index[[ind]][2]]
+      varibles[index[[ind]][2]] = temp
+      if(logl_one_round[j-1] > logl && steepest)  break
+      logl_one_round[j] = logl
+    }
+    result_index[[i]] = varibles
+    logl_process[[i]] = max(logl_one_round)
+  }
+  return(list(logl_process,result_index))
+}
+result = local_search()
+max(result[[1]])
+result[[2]][[which.max(result[[1]])]]
+```
+
+
+### b
+```{r}
+result2 = local_search(steepest = T)
+max(result2[[1]])
+result2[[2]][[which.max(result2[[1]])]]
+```
+The two algorithm result the same optimal sequence, where 10  5  8  9 11  1  3  7  6 12  2  4 is the reverse of 2  4 12  3  6  7  1 11  9  8  5 10. The steepest ascent method takes more time because more candidate sequences are computed and examed within each iteration. 
+
+
+
+
+
+

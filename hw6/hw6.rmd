@@ -1,0 +1,310 @@
+
+
+## Problem 4.1
+### d
+Apply the algorithm with R code,
+```{r}
+set.seed(100)
+x = c(85, 196, 341, 578)
+expectation = function(p){
+  ncc = (x[1]*(p[1]^2))/((p[1]^2)+2*p[1]*p[2]+2*p[1]*p[3])
+  nci = (2*x[1]*p[1]*p[2])/((p[1]^2)+2*p[1]*p[2]+2*p[1]*p[3])
+  nct = (2*x[1]*p[1]*p[3])/((p[1]^2)+2*p[1]*p[2]+2*p[1]*p[3])
+  nii = (x[2]*(p[2]^2))/((p[2]^2)+2*p[2]*p[3])+
+        (x[4]*(p[2]^2))/((p[2]^2)+2*p[2]*p[3]+(p[3]^2))
+  nit = (2*x[2]*p[2]*p[3])/((p[2]^2)+2*p[2]*p[3])+
+        (2*x[4]*p[2]*p[3])/((p[2]^2)+2*p[2]*p[3]+(p[3]^2))
+  ntt = x[3]+(x[4]*(p[3]^2))/((p[2]^2)+2*p[2]*p[3]+(p[3]^2))
+  return(c(ncc,nci,nct,nii,nit,ntt))
+}
+maximize = function(n){
+  pc = (2*n[1]+n[2]+n[3])/(2*sum(x))
+  pi = (2*n[4]+n[5]+n[2])/(2*sum(x))
+  pt = (2*n[6]+n[3]+n[5])/(2*sum(x))
+  return(c(pc,pi,pt))
+}
+EM = function(p, max_iter = 50){
+  p_iter = p
+  n = expectation(p_iter)
+  p_iter = maximize(n)
+  for(step in 1:max_iter){
+    n = expectation(p_iter)
+    p_iter = maximize(n)
+  }
+  return(p_iter)
+}
+sampling = function(){
+  obs = c(rep(1,85),rep(2,196),rep(3,341),rep(4,578))
+  bs = sample(obs, length(obs), replace = T)
+  return(c(sum(bs==1),sum(bs==2),sum(bs==3),sum(bs==4)))
+}
+B = 200
+results = matrix(0, B, 3)
+init_p = rep(1/3,3)
+results[1,] = EM(init_p)
+for(b in 1:B-1){
+  x = sampling()
+  results[b+1, ] = EM(init_p)
+}
+sqrt(diag(var(results)))[1:2]
+var(results)[1,2] / prod(sqrt(diag(var(results)))[1:2])
+mean(results[,2])
+```
+The standard errors of $\hat{p}_C$ and $\hat{p}_I$ are $0.003671113$ and $0.013780266$, the correlation is $-0.0007736286$, the estimate $\hat{p}_I=0.1948395$.
+
+### e
+```{r}
+x = c(85, 196, 341, 578)
+log_likelihood = function(p){
+  x[1] * log(p[1]^2+2*p[1]*p[2]+2*p[1]*p[3]) + x[2] * log(p[2]^2 + 2*p[2]*p[3]) + x[3] * log(p[3]^2) #+ x[4] * log(p[2]^2 + 2*p[2]*p[3] + p[3]^2)
+}
+q = expression(n1*log(pc^2) + n2*log(2*pc*pi) + n3*log(2*pc*(1-pc-pi)) +
+                 n4*log(pi^2) + n5*log(2*pi*(1-pc-pi)) + n6*log((1-pc-pi)^2))
+newton_em = function(p, step = 0.1){
+  n = expectation(p)
+  n1 = n[1];n2 = n[2];n3 = n[3];n4 = n[4];n5 = n[5];n6 = n[6]
+  pc = p[1];pi = p[2]
+  q2dev = c(eval(D(D(q,'pc'),'pc')),eval(D(D(q,'pc'),'pi'))
+            ,eval(D(D(q,'pi'),'pc')),eval(D(D(q,'pi'),'pi')))
+  p_next = p[1:2] - step * solve(matrix(q2dev, byrow = T, nrow = 2), c(eval(D(q, 'pc')), eval(D(q, 'pi'))))
+  return(c(p_next[1], p_next[2], 1-p_next[1]-p_next[2]))
+}
+p_run = rep(1/3,3)
+step = 1
+for(i in 1:100){
+  l = log_likelihood(p_run)
+  l_ = l
+  p_buffer = newton_em(p_run, step)
+  if(sum((p_run-p_buffer)^2)<1e-10) break
+  if(prod(p_buffer)>0) l_ = log_likelihood(p_buffer)
+  while(l_<=l){
+    step = step/2
+    p_buffer = newton_em(p_run, step)
+    if(prod(p_buffer)>0) l_ = log_likelihood(p_buffer)
+  }
+  p_run = p_buffer
+}
+p_run
+```
+
+## Problem 4.2
+### c
+```{r}
+data = read.table('hivrisk.dat', header = T)
+n = data$frequency
+i = data$encounters
+N = sum(n)
+pi = function(i, theta){
+  if(i==0) 
+    theta[1]+theta[2]*theta[3]^i*exp(-theta[3])+(1-theta[1]-theta[2])*theta[4]^i*exp(-theta[4])
+  else
+    theta[2]*theta[3]^i*exp(-theta[3])+(1-theta[1]-theta[2])*theta[4]^i*exp(-theta[4])
+}
+expectation = function(theta){
+  z = theta[1] / pi(0, theta)
+  ti = theta[2]*theta[3]^i*exp(-theta[3]) / sapply(i, FUN = pi, theta = theta)
+  pi = (1-theta[1]-theta[2])*theta[4]^i*exp(-theta[4]) / sapply(i, FUN = pi, theta = theta)
+  return(list('z' = z, 't' = ti, 'p' = pi))
+}
+maximize = function(ztp){
+  alpha = n[1]*ztp$z/N
+  beta = sum(n*ztp$t)/N
+  mu = sum(i*n*ztp$t)/sum(n*ztp$t)
+  lambda = sum(i*n*ztp$p)/sum(n*ztp$p)
+  return(c(alpha, beta, mu, lambda))
+}
+EM = function(p, max_iter = 100, epsilon = 0.00001){
+  p_iter = p
+  ztp = expectation(p_iter)
+  p_iter = maximize(ztp)
+  buffer_p = p_iter
+  for(step in 1:max_iter){
+    ztp = expectation(p_iter)
+    p_iter = maximize(ztp)
+    if(sum((p_iter-buffer_p)^2) < epsilon) break
+    else buffer_p = p_iter
+  }
+  return(p_iter)
+}
+sampling = function(){
+  n0 = data$frequency
+  bs = sample(i, N, replace = T, prob = n0/sum(n0))
+  resample = c()
+  for(i in 1:length(i)){
+    resample[i] = sum(bs == i-1)
+  }
+  return(resample)
+}
+B = 200
+results = matrix(0, B, 4)
+init_p = c(1/3,1/3,1,2)
+results[1,] = EM(init_p)
+for(b in 1:B-1){
+  n = sampling()
+  results[b+1, ] = EM(init_p)
+}
+sqrt(diag(var(results)))
+```
+The standard error for $(\hat{\alpha},\hat{\beta},\hat{\mu},\hat{\lambda})$ is $(0.02041211 0.02149955 0.11310905 0.19144405)$. 
+```{r}
+var(results)
+```
+The correlation matrix is as above.
+
+## Problem 4.3
+### c
+The Q function has the following form in the Baysian EM method,
+$$
+\begin{aligned} Q\left(\boldsymbol{\theta} \mid \boldsymbol{\theta}^{(t)}\right) &=E\left\{\log \{L(\boldsymbol{\theta} \mid \mathbf{Y}) f(\boldsymbol{\theta}) k(\mathbf{Y})\} \mid \mathbf{x}, \boldsymbol{\theta}^{(t)}\right\} \\ &=E\left\{\log L(\boldsymbol{\theta} \mid \mathbf{Y}) \mid \mathbf{x}, \boldsymbol{\theta}^{(t)}\right\}+\log f(\boldsymbol{\theta})+c \end{aligned} 
+$$
+In this problem , the trickest part is to calculate the first and second derivative of the Q function.
+```{r}
+data = read.table('trivariatenormal.dat', header = T)
+n1=which(is.finite(data[,1]))
+n2=which(is.finite(data[,2]))
+n3=which(is.finite(data[,3]))
+n = length(data[,1])
+sigma = matrix(c(1,0.6,1.2,0.6,0.5,0.5,1.2,0.5,3.0),nrow=3,ncol=3)
+sigma_inv = solve(sigma)
+sigma11 = sigma_inv[1,1]
+sigma22 = sigma_inv[2,2]
+sigma33 = sigma_inv[3,3]
+sigma12 = sigma_inv[1,2]
+sigma13 = sigma_inv[1,3]
+sigma23 = sigma_inv[2,3]
+
+Q = expression(
+  -0.5 *( sigma11*(-2*mu1*x1+n*mu1^2) 
+         +sigma22*(-2*mu2*x2+n*mu2^2)
+         +sigma33*(-2*mu3*x3+n*mu3^2)
+         +2*sigma12*(-mu1*x2-mu2*x1+n*mu1*mu2)
+         +2*sigma23*(-mu2*x3-mu3*x2+n*mu2*mu3)
+         +2*sigma13*(-mu1*x3-mu3*x1+n*mu1*mu3) )
+  - (mu1-2)/2-log((1+exp(-(mu1-2)/2))^2)
+  - (mu2-4)/2-log((1+exp(-(mu2-4)/2))^2)
+  - (mu3-6)/2-log((1+exp(-(mu3-6)/2))^2)
+)
+
+data_run = function(p){
+  x1 = sum(data[n1, 1]) + p[1] * (n - length(n1))
+  x2 = sum(data[n2, 2]) + p[2] * (n - length(n2))
+  x3 = sum(data[n3, 3]) + p[3] * (n - length(n3))
+  return(c(x1,x2,x3))
+}
+
+newton_em = function(p){
+  x = data_run(p)
+  x1 = x[1];x2 = x[2];x3 = x[3]
+  mu1 = p[1];mu2 = p[2];mu3 = p[3]
+  q1dev = c( eval(D(Q,'mu1')), eval(D(Q,'mu2')), eval(D(Q,'mu3')) )
+  q2dev = c( eval(D(D(Q,'mu1'),'mu1')), eval(D(D(Q,'mu1'),'mu2')), eval(D(D(Q,'mu1'),'mu3')),
+             eval(D(D(Q,'mu2'),'mu1')), eval(D(D(Q,'mu2'),'mu2')), eval(D(D(Q,'mu2'),'mu3')),
+             eval(D(D(Q,'mu3'),'mu1')), eval(D(D(Q,'mu3'),'mu2')), eval(D(D(Q,'mu3'),'mu3')) )
+  q2dev = matrix(q2dev, byrow = T, nrow = 3)
+  p_ = p - solve(q2dev, q1dev)
+  return(p_)
+}
+
+p_run = rep(1,3)
+for(i in 1:100){
+  p_buffer = newton_em(p_run)
+  if(sum((p_run-p_buffer)^2)<1e-10) break
+  p_run = p_buffer
+}
+p_run
+```
+Therefore the result of gradient EM is 
+$$
+(\mu_1,\mu_2, \mu_3) = (0.8137032, 2.8383095, 8.9810973).
+$$
+
+## Problem 4.4
+When $\delta_i = 1$, the data is censored. With Weibull distribution, the density of uncensored data is:
+$$
+\lambda(t)S(t) = abt^{b-1}e^{-at^b},
+$$
+the density of censored data is:
+$$
+S(t) = 1-F(t) = e^{-at^b}.
+$$
+The log-likelihood is:
+$$
+l = -\sum_iat^b + \sum_{i}(1-\delta_i) \log(abt^{b-1}).
+$$
+the Q function is:
+$$
+E(l|a^{(t)}, b^{(t)}, t) = \sum_{i,\delta_i=0}-at^b+ \log(abt^{b-1}) + \sum_{i,\delta_i=1} -aE[T^b|a^{(t)}, b^{(t)}]+\log(ab) + (b-1)E[\log(T)|a^{(t)}, b^{(t)}].
+$$
+The density for MC of $T$ is:
+$$
+f(t|a^{(t)}, b^{(t)}) = a^{(t)}b^{(t)}t^{b^{(t)}-1}e^{-a^{(t)}t^{b^{(t)}}}
+$$
+```{r}
+set.seed(514)
+data = read.table("gearcouplings.dat", header=T)
+N = length(data[,1])
+censor = data[,2]
+t = data[,1]
+Q = expression(  log(a*b) + (-a*t^b+(b-1)*log(t)) * (censor-1)^2 
+                 +  censor * (-a*t_mc^b+(b-1)*t_mc_log) )
+sampling = function(a, b, m){
+  out = c()
+  out_log = c()
+  c_t = t[which(censor==1)]
+  for(i in 1:length(c_t)){
+    u_min <- 1-exp(-a*c_t[i]^b)
+    f <- runif(m, min = u_min, max = 1)
+    out[i] <- mean( (-log(1-f)/a)^(1/b) )
+    out_log[i] = mean( log((-log(1-f)/a)^(1/b)) )
+  }
+  t_mc = rep(1,N)
+  t_mc_log = rep(1,N)
+  t_mc[which(censor==1)] = out
+  t_mc_log[which(censor==1)] = out_log
+  return(list(t_mc, t_mc_log))
+}
+
+MC_EMC = function(a_init, b_init, m = 100){
+
+  a_old = a_init; b_old = b_init
+  step = 1
+  for(k in 1:40){
+    a = a_old
+    b = b_old
+    mcs = sampling(a, b, m)
+    t_mc = mcs[[1]]; t_mc_log = mcs[[2]]
+    
+    q = sum(eval(Q))
+    a = a_old - step * sum(eval(D(Q, 'a'))) / sum(eval(D(D(Q, 'a'),'a')))
+    if (a >= 0) q_ = sum(eval(Q))
+    else q_ = q
+    while(q>=q_ ){
+      step = step/2
+      a = a_old
+      a = a_old - step * sum(eval(D(Q, 'a'))) / sum(eval(D(D(Q, 'a'),'a')))
+      if (a >= 0) q_ = sum(eval(Q))
+    }
+    q = q_
+    
+    b = b_old - step * sum(eval(D(Q, 'b'))) / sum(eval(D(D(Q, 'b'),'b')))
+    if (b >= 0) q_ = sum(eval(Q))
+    else q_ = q
+    while(q>=q_){
+      step = step/2
+      b = b_old
+      b = b_old - step * sum(eval(D(Q, 'b'))) / sum(eval(D(D(Q, 'b'),'b')))
+      if (b >= 0) q_ = sum(eval(Q))
+    }
+    
+    if(sqrt((a-a_old)^2+(b-b_old)^2)<0.0001) break
+    
+    a_old = a; b_old = b
+  }
+  
+  return(list('a'=a,'b'=b))
+}
+
+MC_EMC(a_init=0.01,b_init=2.5,m=100)
+```
+The estimated result is as above. The advantage of this algorithm is that the derivatives are easy to compute especially when the dimension of parameters are high and it is less sensitive to the initial point. The disadvantege is that this may converge slower (in terms of iteration steps) than classical newton EM, because the Monte Carlo estimate step and ECM are all quasi-methods they cannot give the accurate values.
+

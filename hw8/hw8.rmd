@@ -1,0 +1,953 @@
+
+## Problem 6.1
+From FIGURE 5.3, we can see that the function has a form of normal distribution, then we can find a normal distribution density function $e(x)$ with proper $\mu$ and $\sigma$, and find a $c$ that satisfies $ce(x)\ge f(x)$ while the two function are close enough so that producing extremely few rejections.
+
+## Problem 6.2
+### a
+```{r}
+l = function(x){ -0.5*log(2*pi) - x^2/2 }
+dl = function(x){ -x }
+z = function(x1,x2){ (l(x2)-l(x1)-x2*dl(x2)+x1*dl(x1)) / (dl(x1)-dl(x2)) }
+e = function(x, node){
+  zs = c(0)
+  if(length(node)>=2){
+    for(i in 1:(length(node)-1) ){ zs[i+1] = z(node[i], node[i+1]) }
+    zs = sort(zs)
+    idx = findInterval(x,zs)
+    xi = node[idx]
+  }
+  else{
+    xi = node
+  }
+  return( exp( l(xi)+(x-xi)*dl(xi) ) )
+}
+obj = function(node){
+  int = integrate(e, node=node, lower = 0, upper = Inf)
+  return(2*int$value)
+}
+optim(1.5, fn = obj,method = "BFGS")$par
+optim(c(0.5,1),fn = obj,method = "BFGS")$par
+optim(c(0.4,0.8,1.2),fn = obj,method = "BFGS")$par
+optim(c(0.3,0.7,1,1.2),fn = obj,method = "BFGS")$par
+optim(c(0.2,0.5,0.8,1,1.3),fn = obj,method = "BFGS")$par
+```
+
+### b
+```{r}
+seg = function(x,node,k){
+  if(k==0 || k==length(node)){
+    return(Inf)
+  }
+  else{
+    return(l(node[k])+(l(node[k+1])-l(node[k]))*(x-node[k])/
+             (node[k+1]-node[k]))
+  }
+}
+e2 = function(x,node){
+  node = sort(node)
+  node = c(sort(-node),0,node)
+  n = length(node)
+  ix = findInterval(x,node)
+  #print(ix)
+  if (ix==0){eval=seg(x,node,1)}
+  else if(ix==n){eval=seg(x,node,n-1)}
+  else{
+    eval=min(seg(x,node,ix-1),seg(x,node,ix+1))
+  }
+  return(exp(eval))
+}
+e2 = Vectorize(e2, vectorize.args = "x")
+obj2 = function(node){
+  int = integrate(e2,node=node,lower = 0,upper = Inf)
+  return(2*int$value)
+}
+optim(0.5, fn = obj2,method = "BFGS")$par
+optim(c(0.5,1),fn = obj2,method = "BFGS")$par
+optim(c(0.4,0.8,1.2),fn = obj2,method = "BFGS")$par
+optim(c(0.3,0.7,1,1.2),fn = obj2,method = "BFGS")$par
+optim(c(0.2,0.5,0.8,1,1.3),fn = obj2,method = "BFGS")$par
+```
+
+### c
+```{r}
+node1 = c(1, 1.058612)
+node2 = c(0.4931504,1.6781226, 1.053159,1.324919)
+node3 = c(0.3338405,1.0606614,2.0380357,
+          0.4924163,1.4660194,1.6132913)
+node4 = c(0.2381853,0.7480970,1.3424541,2.2065854,
+          0.5104969,0.8637148,2.0195193,1.7428956)
+node5 = c(0.2120724,0.5856616,0.9486638,1.5994170,2.4014297,
+          0.3369724,0.8177592,1.0784564,1.9138110,2.0249734)
+plt_e = function(node,fun1,fun2){
+  x = seq(0,3,length.out = 1000)
+  density = dnorm(x)
+  n =length(node)
+  env1 = fun1(x,node[1:n/2])
+  env2 = fun2(x,node[n/2+1:n])
+  plot(x,density,type='l',ylim = c(0,0.5),main=paste('n =',n/2))
+  lines(x,env1,col='red')
+  lines(x,env2,col='blue')
+}
+par(mfrow=c(2,3))
+plt_e(node1,e,e2)
+plt_e(node2,e,e2)
+plt_e(node3,e,e2)
+plt_e(node4,e,e2)
+plt_e(node5,e,e2)
+area=obj2(node1[length(node1)/2+1:length(node1)])
+area[2]=obj2(node2[length(node2)/2+1:length(node2)])
+area[3]=obj2(node3[length(node3)/2+1:length(node3)])
+area[4]=obj2(node4[length(node4)/2+1:length(node4)])
+area[5]=obj2(node5[length(node5)/2+1:length(node5)])
+plot(1:5,area,main='Area of Envelopes',type = 'l',col='blue')
+area=obj(node1[1:length(node1)/2])
+area[2]=obj(node2[1:length(node2)/2])
+area[3]=obj(node3[1:length(node3)/2])
+area[4]=obj(node4[1:length(node4)/2])
+area[5]=obj(node5[1:length(node5)/2])
+lines(1:5,area,col='red')
+```
+In the above graphs, the blue lines are the tangent free ones and the red lines are the tangent based ones. Both methods will have less rejection sampling waste when we have more nodes, and the tangent based method has better envepole functions.
+
+## Problem 6.3
+
+### a
+```{r}
+SIR = function(target,n,m){
+  x = rnorm(m)
+  f = exp(-x^2/2)
+  g = target(x)
+  w = (g/f)/sum(g/f)
+  resamples = sample(x,n,replace = F,prob = w)
+  return(resamples)
+}
+fun = function(x){ exp(-abs(x)^3/3) }
+mean(SIR(fun,1000,100000)^2)
+```
+
+### b
+```{r}
+RS = function(target, n){
+  num = 0; x = c()
+  while(num <= n){
+    y = rnorm(1)
+    u = runif(1)
+    if (u<=target(y)/exp(-y^2/2+1)){
+      x[num]=y
+      num = num+1
+    }
+  }
+  return(x)
+}
+samples = RS(fun,4000)
+mean(samples^2)
+```
+
+### c
+```{r}
+samples = sort(samples)
+n=length(samples)
+sum((samples[-1]-samples[-n])*(samples[-n])^2*fun(samples[-n]))/
+  sum((samples[-1]-samples[-n])*fun(samples[-n]))
+```
+
+### d
+```{r}
+RS_result = c();PR_result = c()
+for (i in 1:20){
+  n = i*500
+  samples = RS(fun,n)
+  RS_result[i] = mean(samples^2)
+  samples = sort(samples)
+  PR_result[i] = sum((samples[-1]-samples[-n])*(samples[-n])^2*fun(samples[-n]))/
+    sum((samples[-1]-samples[-n])*fun(samples[-n]))
+}
+plot(1:20,RS_result,type='l',col = 'red', xlab = 'sample size (x500)',ylab = 'estimate', ylim = c(0.3,0.9))
+lines(1:20, PR_result, col = 'blue')
+```
+The method of rejection sampling is more stable than the method in (c) with respect to sample sizes. And the rejection sampling method is more likely to give a higher estimate than the method in (c). The method in (c) saves computation time.
+
+## Problem 6.4
+### a
+```{r}
+data <- read.table("coal.dat", header=T)
+coal = data[,2]
+l = function(param){
+  s1 = sum(log(dpois(coal[1:param[1]],param[2])))
+  s2 = sum(log(dpois(coal[(param[1]+1):length(coal)],param[3])))
+  return(exp(s1+s2))
+}
+SIR = function(n,m){
+  theta = sample(1:111,m,replace = T)
+  a1 = rgamma(m,10,10)
+  a2 = rgamma(m,10,10)
+  l1 = sapply(a1,FUN=rgamma,n=1,shape=3)
+  l2 = sapply(a2,FUN=rgamma,n=1,shape=3)
+  params = matrix(c(theta,l1,l2),nrow=3,byrow=T)
+  eval = apply(params,2,l)
+  w = eval/sum(eval)
+  resample_idx = sample(m,n,replace=T,prob=w)
+  return(list('params' = params,'resample_idx' = resample_idx))
+}
+
+samples = SIR(1000,100000)
+params = samples$params
+idx = samples$resample_idx
+mean(params[1,idx])#mean
+t.test(params[1,idx])$conf.int#CI
+hist(params[1,idx],freq=F,xlab='theta',main='Theta Posterior')
+lines(density(params[1,idx]))
+
+mean(params[2,idx])#mean
+t.test(params[2,idx])$conf.int#CI
+hist(params[2,idx],freq=F,xlab='lambda1',main='Lambda1 Posterior')
+lines(density(params[2,idx]))
+
+mean(params[3,idx])#mean
+t.test(params[3,idx])$conf.int#CI
+hist(params[3,idx],freq=F,xlab='lambda2',main='Lambda2 Posterior')
+lines(density(params[3,idx]))
+```
+Then we plot $\lambda_1$ against $\lambda_2$:
+```{r}
+color = rep(0,length(params[1,]))
+color[idx] = 'red'
+color[-idx] = 'yellow'
+plot(params[2,],params[3,],col=color,xlab='lambda1',ylab='lambda2',pch=20,cex=0.1,
+     xlim = c(0,25), ylim = c(0,25))
+```
+The hightlighted resampled points are red.
+```{r}
+length(unique(idx))
+which.max(table(idx))
+params[,as.numeric(names(which.max(table(idx))))]
+```
+We uniformly sampled 100000 samples in the first stage, and then resampled 1000 samples in the second stage. In the resampled samples, only more than half of them are duplicated. This reflects that the uniform sampling scheme in the first stage is not good, the samples near the margin of the support set have really low density in posterior.
+
+### b
+```{r}
+SIR = function(n,m){
+  theta = sample(1:111,m,replace = T)
+  a1 = rgamma(m,10,10)
+  a2 = rgamma(m,10,10)
+  l1 = sapply(a1,FUN=rgamma,n=1,shape=3)
+  alpha = exp(runif(m, log(1/8), log(2)))
+  l2 = alpha * l1
+  params = matrix(c(theta,l1,l2),nrow=3,byrow=T)
+  eval = apply(params,2,l)
+  w = eval/sum(eval)
+  resample_idx = sample(m,n,replace=T,prob=w)
+  return(list('params' = params,'resample_idx' = resample_idx))
+}
+
+samples = SIR(1000,100000)
+params = samples$params
+idx = samples$resample_idx
+mean(params[1,idx])#mean
+t.test(params[1,idx])$conf.int#CI
+hist(params[1,idx],freq=F,xlab='theta',main='Theta Posterior')
+lines(density(params[1,idx]))
+
+mean(params[2,idx])#mean
+t.test(params[2,idx])$conf.int#CI
+hist(params[2,idx],freq=F,xlab='lambda1',main='Lambda1 Posterior')
+lines(density(params[2,idx]))
+
+mean(params[3,idx])#mean
+t.test(params[3,idx])$conf.int#CI
+hist(params[3,idx],freq=F,xlab='lambda2',main='Lambda2 Posterior')
+lines(density(params[3,idx]))
+```
+Then we plot $\lambda_1$ against $\lambda_2$:
+```{r}
+color = rep(0,length(params[1,]))
+color[idx] = 'red'
+color[-idx] = 'yellow'
+plot(params[2,],params[3,],col=color,xlab='lambda1',ylab='lambda2',pch=20,cex=0.1,
+     xlim = c(0,25), ylim = c(0,25))
+```
+The hightlighted resampled points are red.
+```{r}
+length(unique(idx))
+which.max(table(idx))
+params[,as.numeric(names(which.max(table(idx))))]
+```
+The resampled samples have less duplicates, because the relation between two $\lambda$ makes $lambda_2$ more likely larger than $\lambda_1$, which is more reasonable in this change point model.
+
+### c
+```{r}
+SIR = function(n,m){
+  theta = sample(1:111,m,replace = T)
+  a1 = runif(m,0,100)
+  a2 = runif(m,0,100)
+  l1 = sapply(a1,FUN=rgamma,n=1,shape=3)
+  l2 = sapply(a2,FUN=rgamma,n=1,shape=3)
+  params = matrix(c(theta,l1,l2),nrow=3,byrow=T)
+  eval = apply(params,2,l)
+  w = eval/sum(eval)
+  resample_idx = sample(m,n,replace=T,prob=w)
+  return(list('params' = params,'resample_idx' = resample_idx))
+}
+
+samples = SIR(1000,100000)
+params = samples$params
+idx = samples$resample_idx
+mean(params[1,idx])#mean
+t.test(params[1,idx])$conf.int#CI
+hist(params[1,idx],freq=F,xlab='theta',main='Theta Posterior')
+lines(density(params[1,idx]))
+
+mean(params[2,idx])#mean
+t.test(params[2,idx])$conf.int#CI
+hist(params[2,idx],freq=F,xlab='lambda1',main='Lambda1 Posterior')
+lines(density(params[2,idx]))
+
+mean(params[3,idx])#mean
+t.test(params[3,idx])$conf.int#CI
+hist(params[3,idx],freq=F,xlab='lambda2',main='Lambda2 Posterior')
+lines(density(params[3,idx]))
+```
+Then we plot $\lambda_1$ against $\lambda_2$:
+```{r}
+color = rep(0,length(params[1,]))
+color[idx] = 'red'
+color[-idx] = 'yellow'
+plot(params[2,],params[3,],col=color,xlab='lambda1',ylab='lambda2',pch=20,cex=0.1,
+     xlim = c(0,25), ylim = c(0,25))
+```
+The hightlighted resampled points are red.
+```{r}
+length(unique(idx))
+which.max(table(idx))
+params[,as.numeric(names(which.max(table(idx))))]
+```
+As we can see the unique sample size is only 3, almost all of the resampled samples are duplicated. This is because the sampled lambdas are basicly the same and have small values, so the envelope prior density is bad for this problem, because where the prior envelope's density is large, the posterior is extremely small and vice versa. Therefore, the efficient sample sizi is really samll.
+
+## Problem 6.5
+
+### a
+Similar to the proof in textbook, $U_i$ is uniformly distributed on $(0,1)$, and $1-U_i$ is also uniformly distributed on $(0,1)$. And if $h_1(U_i), h_2(U_i)$ are monotone increasing (or decreasing), then $h_1(1-U_i), h_2(1-U_i)$ are monotone decreasing (or increasing). If $m=1$, we have
+$$\left[h_{1}(X)-h_{1}(1-Y)\right]\left[h_{2}(X)-h_{2}(1-Y)\right] \leq 0,$$
+where $X,Y$ are uniformlu i.i.d on $(0,1)$. It indicates that
+$$\operatorname{cov}\left\{h_{1}\left(U_{i}\right), h_{2}\left(1-U_{i}\right)\right\} \leq 0.$$
+Suppose the conclusion holds for all $i<m$, then from the assumption as in textbook,
+$$
+\operatorname{cov}\left\{h_{1}\left(\mathbf{U}_{i}\right), h_{2}\left(1-\mathbf{U}_{i}\right) | U_{i m}\right\} \leq 0,
+$$
+therefore,
+$$\begin{aligned}
+0 & \geq E\left\{E\left\{h_{1}\left(\mathbf{U}_{i}\right) h_{2}\left(1-\mathbf{U}_{i}\right) | U_{i m}\right\}\right\}-E\left\{E\left\{h_{1}\left(\mathbf{U}_{i}\right) | U_{i m}\right\} E\left\{h_{2}\left(1-\mathbf{U}_{i}\right) | U_{i m}\right\}\right\} \\
+& \geq E\left\{h_{1}\left(\mathbf{U}_{i}\right) h_{2}\left(1-\mathbf{U}_{i}\right)\right\}-E\left\{E\left\{h_{1}\left(\mathbf{U}_{i}\right) | U_{i m}\right\}\right\} E\left\{E\left\{h_{2}\left(1-\mathbf{U}_{i}\right) | U_{i m}\right\}\right\}\\
+&=\operatorname{cov}\left\{h_{1}\left(\mathbf{U}_{i}\right), h_{2}\left(1-\mathbf{U}_{i}\right)\right\}.
+\end{aligned}
+$$
+
+We have
+$$
+\operatorname{cov}\left\{h_{1}\left(\mathbf{U}_{i}\right), h_{2}\left(1-\mathbf{U}_{i}\right)\right\} \geq 0.
+$$
+Thus, we have
+$$\operatorname{cov}\left\{h_{1}\left(U_{1}, \ldots, U_{m}\right), h_{2}\left(1-U_{1}, \ldots, 1-U_{m}\right)\right\} \leq 0.$$
+
+### b
+We should construct a $Z$ without $\mu$ as $\mu$ is unknown. We take $Z=\hat\mu_1(\mathbf X)-\hat\mu_2(\mathbf Y)$. Then the estimate becomes $\hat\mu_{CV} = (1-\lambda)\hat\mu_1(\mathbf X)+\lambda\hat\mu_2(\mathbf Y)$. By minimizing the variance of $\hat\mu_{CV}$,
+$$
+\min_\lambda \operatorname{var}(\hat\mu_{CV}) = (1-\lambda)^2\operatorname{var}(\hat\mu_1(\mathbf X))+\lambda^2\operatorname{var}(\hat \mu_2(\mathbf Y)) + 2(1-\lambda)\lambda\operatorname{cov}(\hat\mu_1(\mathbf X),\hat\mu_2(\mathbf Y)),
+$$
+we have
+$$
+\lambda=\frac{\operatorname{var}(\hat\mu_1(\mathbf X))-\operatorname{cov}(\hat\mu_1(\mathbf X),\hat\mu_2(\mathbf Y))}{\operatorname{var}(\hat\mu_1(\mathbf X))+\operatorname{var}(\hat \mu_2(\mathbf Y))-2\operatorname{cov}(\hat\mu_1(\mathbf X),\hat\mu_2(\mathbf Y))}.
+$$
+
+## Problem 6.6
+### a
+```{r}
+sample_gen = function(lambda = 2){ return((mean(rpois(25, lambda)) - 2) * 5 / sqrt(2) ) }
+standard = function(n, lam = 2){
+  samples = sapply(rep(lam,n), sample_gen)
+  return(sum(samples>=1.645)/n)
+}
+antithetic = function(n, lam = 2){
+  x = matrix(runif(25*n/2),nrow = 25)
+  y = 1-x
+  hx = qpois(x, lam)
+  cy = qpois(y, lam)
+  mu1 = (apply(hx,2,mean)-2)/sqrt(2) * 5
+  mu2 = (apply(cy,2,mean)-2)/sqrt(2) * 5
+  samples = ((mu1>=1.645) + (mu2>=1.645)) / 2
+  return(sum(samples)/n*2)
+}
+IS_unstd = function(n, lam = 2){
+  t = matrix(rpois(25*n, 2.4653),nrow = 25)
+  samples = (apply(t, 2, mean) -2) *5/sqrt(2)
+  w = apply(dpois(t, lam)/dpois(t, 2.4653),2,prod)
+  return(sum((samples>=1.645)*w)/n)
+}
+IS_std = function(n, lam = 2){
+  t = matrix(rpois(25*n, 2.4653),nrow = 25)
+  samples = (apply(t, 2, mean) -2) *5/sqrt(2)
+  w = apply(dpois(t, lam)/dpois(t, 2.4653),2,prod)
+  w = w / sum(w)
+  return(sum((samples>=1.645)*w))
+}
+IS_cv = function(n, lam = 2){
+  t = matrix(rpois(25*n, 2.4653),nrow = 25)
+  samples = (apply(t,2,mean)-2)/sqrt(2/25)
+  w = apply(dpois(t, lam)/dpois(t, 2.4653),2,prod)
+  y = (samples>=1.645)*w
+  reg = lm(y~w)
+  return(sum(reg$coefficients))
+}
+
+n = 200
+standard(n)
+t.test(sapply(rep(n,1000),standard))$conf.int
+
+antithetic(n)
+t.test(sapply(rep(n,1000),antithetic))$conf.int
+
+IS_unstd(n)
+t.test(sapply(rep(n,1000),IS_unstd))$conf.int
+
+IS_std(n)
+t.test(sapply(rep(n,1000),IS_std))$conf.int
+
+IS_cv(n)
+t.test(sapply(rep(n,1000),IS_cv))$conf.int
+```
+When the sample size is set to 1000, all of the methods are pretty good. The standard MC gives the most convenient and simple way to estimate the size of the test, and the importance sampling with control variate is more complex as it need to compute a linear regression model. And the other three method have similar complexity. In term of performance, inspecting th confidence interval, the standard MC gives largest CI indicating wosrt robustness while the importance sampling with control variate gives the smallest which means best variance reduction ability. The other three methods are basicly the same. 
+
+### b
+```{r}
+lambdas = seq(2.2,4,length.out = 15)
+power = c()
+ci = matrix(0,nrow = 2, ncol = 15)
+set.seed(514)
+## standard
+for (i in 1:15){
+  result = sapply(rep(lambdas[i],1000),standard,n=n)
+  power[i] = mean(result)
+  ci[,i] = as.numeric(t.test(result)$conf.int)
+}
+plot(lambdas,power,main="Standard")
+lines(lambdas,ci[1,])
+lines(lambdas,ci[2,])
+
+## antithetic
+for (i in 1:15){
+  result = sapply(rep(lambdas[i],1000),antithetic,n=n)
+  power[i] = mean(result)
+  ci[,i] = as.numeric(t.test(result)$conf.int)
+}
+plot(lambdas,power,main="Antithetic")
+lines(lambdas,ci[1,])
+lines(lambdas,ci[2,])
+
+## IS unstandard
+for (i in 1:15){
+  result = sapply(rep(lambdas[i],1000),IS_unstd,n=n)
+  power[i] = mean(result)
+  ci[,i] = as.numeric(t.test(result)$conf.int)
+}
+plot(lambdas,power,main="IS Unstandardized")
+lines(lambdas,ci[1,])
+lines(lambdas,ci[2,])
+
+## IS standard
+for (i in 1:15){
+  result = sapply(rep(lambdas[i],1000),IS_std,n=n)
+  power[i] = mean(result)
+  ci[,i] = as.numeric(t.test(result)$conf.int)
+}
+plot(lambdas,power,main="IS Standardized")
+lines(lambdas,ci[1,])
+lines(lambdas,ci[2,])
+
+## IS control variate
+for (i in 1:15){
+  result = sapply(rep(lambdas[i],1000),IS_cv,n=n)
+  power[i] = mean(result)
+  ci[,i] = as.numeric(t.test(result)$conf.int)
+}
+plot(lambdas,power,main="IS control variate")
+lines(lambdas,ci[1,])
+lines(lambdas,ci[2,])
+```
+It can be seen that when $\lambda\leq3$, all methods perform similarly. However, when $\lambda>3$, importance sampling with unstandardized weights has large CIs. It is because of unstable fluctuate of sample weights. All the method performs pretty well, their CIs are marginal.
+
+## Problem 6.7
+### a
+$$
+\begin{aligned}
+E(C) &= E\left[\exp \left\{-\frac{r T}{365}\right\} \max \left\{0, S^{(T)}-K\right\}  \right] \\
+&= \int_{-\infty}^{+\infty} \exp \left\{-\frac{r T}{365}\right\}\max\{0,\left( S^{(0)} \exp \left\{\left(r-\frac{\sigma^{2}}{2}\right) \frac{T}{365}+\sigma z \sqrt{\frac{T}{365}}\right\} - K\right)\}\frac{1}{\sqrt{2\pi}}\exp\left\{ -\frac{z^2}{2}\right\} \mathrm{dz},
+\end{aligned}
+$$
+```{r}
+s0 = 50;K = 52;sigma = 0.5;N=30;r=0.05
+t = 30
+z = rnorm(10000, 0, 1)
+st = s0*exp( (r-sigma^2/2)*t/365+sigma*z*sqrt(t/365) )
+sum(exp(-r*t/365) * (st[st-K>0]-K)) /10000
+```
+The result is close to 2.10.
+
+### b
+```{r}
+n = 500
+asianpriceopt = function(n){
+  a = c()
+  for(i in 1:n){
+    s = c(s0)
+    for(j in 1:t){
+      s[j+1] = s[j]*exp( (r-sigma^2/2)/365 +  sigma*rnorm(1, 0, 1)/sqrt(365) )
+    }
+    a[i] = exp(-r*t/365)*max(0,mean(s[-1]) - K)
+  }
+  return(mean(a))
+}
+asianpriceopt(n)
+```
+
+### c
+```{r}
+c3 = 1 + 1/N
+c2 = sigma*((c3*t/1095)*(1 + 1/(2*N)))^.5
+c1 = (1/c2)*(log(s0/K) + (c3*t/730)*(r - (sigma^2)/2) + (c3*(sigma^2)*t/1095)*(1 + 1/(2*N)))
+theta = s0*pnorm(c1)*exp(-t*(r + c3*(sigma^2)/6)*(1 - 1/N)/730) - K*pnorm(c1-c2)*exp(-r*t/365)
+mc_theta_a = function(n){
+  a = c()
+  theta = c()
+  for(i in 1:n){
+    s = c(s0)
+    for(j in 1:t){
+      s[j+1] = s[j]*exp( (r-sigma^2/2)/365 +  sigma*rnorm(1, 0, 1)/sqrt(365) )
+    }
+    theta[i] = exp(-r*t/365)*max(0,exp(mean(log(s[-1])))-K)
+    a[i] = exp(-r*t/365)*max(0,mean(s[-1]) - K)
+  }
+  return(c(mean(a), mean(theta)))
+}
+results = sapply(rep(n,1000), mc_theta_a)
+a_results = results[1,]
+theta_results = results[2,]
+mu_cv = a_results-1*(theta_results-theta)
+mean(mu_cv)
+sd(mu_cv)
+sd(a_results)
+```
+This shows the reduction in variance when adding control variate.
+
+### d
+```{r}
+mc_anti = function(n){
+  a1 = c()
+  a2 = c()
+  for(i in 1:n){
+    s1 = c(s0)
+    s2 = c(s0)
+    for(j in 1:t){
+      q = runif(1)
+      s1[j+1] = s1[j]*exp( (r-sigma^2/2)/365 +  sigma*qnorm(q, 0, 1)/sqrt(365) )
+      s2[j+1] = s2[j]*exp( (r-sigma^2/2)/365 +  sigma*qnorm(1-q, 0, 1)/sqrt(365) )
+    }
+    a1[i] = exp(-r*t/365)*max(0,mean(s1[-1]) - K)
+    a2[i] = exp(-r*t/365)*max(0,mean(s2[-1]) - K)
+  }
+  return((mean(a1)+mean(a2))/2)
+}
+mc_anti(1000)
+```
+
+### e
+```{r}
+strd = sapply(rep(n,1000),asianpriceopt)
+anti = sapply(rep(n/2,1000),mc_anti)
+par(mfrow=c(1,3))
+hist(strd,freq = FALSE,breaks = seq(0.2,1.8,length.out = 15))
+lines(density(strd))
+hist(mu_cv,freq = FALSE,breaks = seq(0.2,1.8,length.out = 15))
+lines(density(mu_cv))
+hist(anti,freq = FALSE,breaks = seq(0.2,1.8,length.out = 15))
+lines(density(anti))
+```
+From the result we can see that the method of importance sampling with control variate has the lowest variance. Then is the antithetic method with lower variance while it is only slightly lower that standard MC method.
+
+
+## Problem 6.8
+```{r}
+n = 1000
+standrd = function(n){
+  x = rlnorm(n,0,1)
+  epl = rnorm(n,0,1)
+  return(mean(exp(9+3*log(x)+epl)/x))
+}
+rb = function(n){
+  epl = rnorm(n,0,1)
+  return(mean(exp(9+2+epl)))
+}
+strd_result = sapply(rep(n,1000), standrd)
+rb_result = sapply(rep(n,1000), rb)
+mean(strd_result)
+sd(strd_result)
+mean(rb_result)
+sd(rb_result)
+```
+As we can see, both method derive similar estimates and the variance of the Rao-Blackwellized estimate is much samller than the standard MC estimate.
+
+## Problem 6.9
+
+### a
+```{r}
+sample_traj = function(){
+  traj = matrix(0,2,31)
+  direction = matrix(c(0,1,0,-1,1,0,-1,0), nrow = 2, byrow = F)
+  steps = sample(1:4, 30, replace = T)
+  for(i in 1:30){
+    traj[,i+1] = traj[,i] + direction[,steps[i]]
+  }
+  return(traj[,-1])
+}
+dt = function(xt){
+  return(abs(xt[1])+abs(xt[2]))
+}
+rt = function(trajt, loc){
+  dif = trajt - loc
+  return(sum(colSums(dif^2)==0))
+}
+mt = function(trajt){
+  rts = apply(trajt,2,rt,trajt = trajt)
+  return(max(rts))
+}
+f = function(trajt){
+  point = trajt[,length(trajt[1,])]
+  return(exp(-(dt(point)+rt(trajt,point))/2))
+}
+SIS = function(n){
+  weight = c()
+  dx = c()
+  mx = c()
+  for(i in 1:n){
+    traj = sample_traj()
+    w = f(traj)
+    weight[i] = w
+    dx[i] = dt(traj[,30])
+    mx[i] = mt(traj)
+  }
+  weight = weight / sum(weight)
+  return(c(sum(weight*dx), sum(weight*mx)))
+}
+
+dx_result = c()
+mx_result = c()
+for(k in 1:100){
+  result = SIS(500)
+  dx_result[k] = result[1]
+  mx_result[k] = result[2]
+}
+mean(dx_result)
+sd(dx_result)
+mean(mx_result)
+sd(mx_result)
+```
+
+### b
+
+```{r}
+sample_traj = function(){
+  traj = matrix(0,2,31)
+  g = c()
+  w = c()
+  direction = matrix(c(0,1,0,-1,1,0,-1,0), nrow = 2, byrow = F)
+  for(i in 1:30){
+    for(j in 1:4){
+      traj[,i+1] = traj[,i] + direction[,j]
+      w[j] = f(matrix(traj[,2:(i+1)], nrow = 2))
+    }
+    step = sample(1:4, 1, prob = w/sum(w))
+    traj[,i+1] = traj[,i] + direction[,step]
+    g[i] = w[step]/sum(w)
+  }
+  return(rbind(traj[,-1], g))
+}
+SIS = function(n){
+  weight = c()
+  dx = c()
+  mx = c()
+  for(i in 1:n){
+    traj_g = sample_traj()
+    w = f(traj_g[1:2,]) / prod(traj_g[3,])
+    weight[i] = w
+    dx[i] = dt(traj_g[1:2,30])
+    mx[i] = mt(traj_g[1:2,])
+  }
+  weight = weight / sum(weight)
+  return(c(sum(weight*dx), sum(weight*mx)))
+}
+
+dx_result = c()
+mx_result = c()
+for(k in 1:100){
+  result = SIS(100)
+  dx_result[k] = result[1]
+  mx_result[k] = result[2]
+}
+mean(dx_result)
+sd(dx_result)
+mean(mx_result)
+sd(mx_result)
+
+par(mfrow=c(1,2))
+hist(dx_result,freq=F,main='Dt Distribution')
+lines(density(dx_result))
+hist(mx_result,freq=F,main='Mt Distribution')
+lines(density(mx_result))
+```
+
+Comparing to the former problem, the algorithm is more complex thus takes more computation resource. And the variance of the two result increase, this is a good phenomenon because the envelope is more close to the target density.
+
+
+## Problem 7.1
+### a
+```{r}
+set.seed(514)
+n=200
+delta=0.7
+x=rnorm(n,7,0.5)
+y=rnorm(n,10,0.5)
+d=rbinom(n,1,delta)
+samples=d*x+(1-d)*y
+hist(samples)
+```
+
+### b
+```{r}
+set.seed(514)
+posterior = function(delta, x){
+  return(prod( delta*exp(-(x-7)^2*2) + (1-delta)*exp(-(x-10)^2*2) ))
+}
+result = c()
+s0 = 0.1
+for(i in 1:(100*n)){
+  result[i] = s0
+  s1 = runif(1)
+  R = posterior(s1, samples)/posterior(s0, samples)
+  u = runif(1)
+  if(u<R) s0 = s1
+}
+plot(result,type = "l",ylim = c(0,1))
+hist(result, freq = F,xlim = c(0.55,0.95),breaks=100)
+lines(density(result))
+```
+
+### c
+
+```{r}
+set.seed(514)
+result = c()
+s0 = 0.1
+for(i in 1:(100*n)){
+  result[i] = s0
+  s1 = s0 + runif(1,-1,1)
+  R = posterior(s1, samples)/posterior(s0, samples)
+  u = runif(1)
+  if(u<R) s0 = s1
+}
+plot(result,type = "l",ylim = c(0,1))
+hist(result, freq = F,xlim = c(0.55,0.95),breaks=100)
+lines(density(result))
+```
+
+### d
+
+```{r}
+set.seed(514)
+result = c()
+s0 = 0.1
+for(i in 1:(100*n)){
+  result[i] = s0
+  u = log(s0/(1-s0))
+  u_ = u + runif(1,-1,1)
+  s1 = exp(u_)/(1+exp(u_))
+  R = posterior(s1, samples)/posterior(s0, samples)*s0*(1-s0)/(s1*(1-s1))
+  u = runif(1)
+  if(u<R) s0 = s1
+}
+plot(result,type = "l",ylim = c(0,1))
+hist(result, freq = F,xlim = c(0.55,0.95),breaks=100)
+lines(density(result))
+```
+
+### e
+In this problem setting, the problem is simple and the differences in the three methods are marginal.
+
+
+## Problem 7.2
+### a
+```{r}
+posterior = function(x){
+  return(0.7*exp(-(x-7)^2*2) + 0.3*exp(-(x-10)^2*2))
+}
+xt=seq(from=0,to=16,by=0.01)
+yt=c()
+for(i in 1:length(xt)){
+  yt[i]=posterior(xt[i])
+}
+set.seed(514)
+result = c()
+s0 = 0
+for(i in 1:(10000)){
+  result[i] = s0
+  s1 = rnorm(1,s0,0.01)
+  R = posterior(s1)/posterior(s0)*dnorm(s0,s1,0.01)/dnorm(s1,s0,0.01)
+  u = runif(1)
+  if(u<R) s0 = s1
+}
+plot(result,type = "l",main = 'initialize from 0')
+hist(result, freq = F,xlim = c(0,16),breaks=50,main = 'initialize from 0')
+lines(xt,yt)
+set.seed(514)
+result = c()
+s0 = 7
+for(i in 1:(10000)){
+  result[i] = s0
+  s1 = rnorm(1,s0,0.01)
+  R = posterior(s1)/posterior(s0)*dnorm(s0,s1,0.01)/dnorm(s1,s0,0.01)
+  u = runif(1)
+  if(u<R) s0 = s1
+}
+plot(result,type = "l",main = 'initialize from 7')
+hist(result, freq = F,xlim = c(0,16),breaks=50,main = 'initialize from 7')
+lines(xt,yt)
+set.seed(514)
+result = c()
+s0 = 15
+for(i in 1:(10000)){
+  result[i] = s0
+  s1 = rnorm(1,s0,0.01)
+  R = posterior(s1)/posterior(s0)*dnorm(s0,s1,0.01)/dnorm(s1,s0,0.01)
+  u = runif(1)
+  if(u<R) s0 = s1
+}
+plot(result,type = "l",main = 'initialize from 15')
+hist(result, freq = F,xlim = c(0,16),breaks=50,main = 'initialize from 15')
+lines(xt,yt)
+```
+All the MC chains do not converge, the proposal probability is too narrow which means low variance which is not appropriate this problem. In each iteration, the chain will probably only move a very short
+distance, therefore the chain cannot explore fully on its target density support.
+
+
+### b
+We only need to increase the variance of the proposal distribution to 1, 
+
+```{r}
+posterior = function(x){
+  return(0.7*exp(-(x-7)^2*2) + 0.3*exp(-(x-10)^2*2))
+}
+xt=seq(from=0,to=16,by=0.01)
+yt=c()
+for(i in 1:length(xt)){
+  yt[i]=posterior(xt[i])
+}
+set.seed(514)
+result = c()
+s0 = 0
+for(i in 1:(10000)){
+  result[i] = s0
+  s1 = rnorm(1,s0,1)
+  R = posterior(s1)/posterior(s0)*dnorm(s0,s1,1)/dnorm(s1,s0,1)
+  u = runif(1)
+  if(u<R) s0 = s1
+}
+plot(result,type = "l",main = 'initialize from 0')
+hist(result, freq = F,xlim = c(0,16),breaks=50,main = 'initialize from 0')
+lines(xt,yt)
+set.seed(514)
+result = c()
+s0 = 7
+for(i in 1:(10000)){
+  result[i] = s0
+  s1 = rnorm(1,s0,1)
+  R = posterior(s1)/posterior(s0)*dnorm(s0,s1,1)/dnorm(s1,s0,1)
+  u = runif(1)
+  if(u<R) s0 = s1
+}
+plot(result,type = "l",main = 'initialize from 7')
+hist(result, freq = F,xlim = c(0,16),breaks=50,main = 'initialize from 7')
+lines(xt,yt)
+set.seed(514)
+result = c()
+s0 = 15
+for(i in 1:(10000)){
+  result[i] = s0
+  s1 = rnorm(1,s0,1)
+  R = posterior(s1)/posterior(s0)*dnorm(s0,s1,1)/dnorm(s1,s0,1)
+  u = runif(1)
+  if(u<R) s0 = s1
+}
+plot(result,type = "l",main = 'initialize from 15')
+hist(result, freq = F,xlim = c(0,16),breaks=50,main = 'initialize from 15')
+lines(xt,yt)
+```
+As the result shows, the three chains are better and the samples mimic the target well.
+
+
+## Problem 7.3
+### a
+```{r}
+mc_pi=function(h, n){
+  samples = matrix(0, 2, n)
+  x = c(0,0)
+  for(i in 1:n){
+    while(T){
+      e = runif(2, -h, h)
+      if((abs(x[1]+e[1])<1)&&(abs(x[2]+e[2])<1)) break
+    }
+    x = x + e
+    samples[,i] = x
+  }
+  indicate = apply(samples^2, 2, sum)
+  return(4/n*sum(indicate<1))
+}
+mc_pi(h = 1, n = 20000)
+```
+We increasing n:
+```{r}
+plot(sapply(seq(20000,80000,5000),mc_pi,h = 1),ylab='estimate',xlab = '20000+5000*n')
+```
+We increasing h:
+```{r}
+plot(sapply(seq(1,2,0.1),mc_pi,n=20000),ylab='estimate',xlab = '1+0.1*n')
+```
+As we can see, increasing n does not have obvious pattern while increasing h makes the estimate shrink.
+
+### b
+This method is like the Metropolis-hastings mathod with a calculate ratio $R \equiv 1$. Thus the overall transition kernel is:
+$$
+T(y|x) = g(y|x)
+$$
+While the $g(y|x)$ is not a uniform distribution, because when $x$ in near the edge of the square, then the conditional uniform distribution gets narrower and not symmetric w.r.t $x$, then $g(y|x)/g(x|y)\ne 1$ thus $R\ne1$. Then there is a contrdiction. And the DBC is not satisfied. The method is problematic. Then the only modification is that we the generated step $x^{*}$ goes out of the square, then let $x^{(t+1)} = x^t$, otherwise, let $x^{(t+1)} = x^*$.
+
+### c
+```{r}
+mc_pi2=function(h, n){
+  samples = matrix(0, 2, n)
+  x = c(0,0)
+  for(i in 1:n){
+    e = runif(2, -h, h)
+    if((abs(x[1]+e[1])<1)&&(abs(x[2]+e[2])<1)){
+      x = x + e
+      samples[,i] = x
+    }
+    else{
+      samples[,i] = x
+    }
+  }
+  indicate = apply(samples^2, 2, sum)
+  return(4/n*sum(indicate<1))
+}
+plot(sapply(seq(1,2,0.1),mc_pi2,n=20000),ylab='estimate',xlab = '1+0.1*n')
+```
+Compares to the method in a, along with the increase of h, the result gets lot more stable, all the estimates are surrounding the true value without a trend of decreasing.
+
+

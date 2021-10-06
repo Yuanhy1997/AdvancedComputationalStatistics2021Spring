@@ -1,0 +1,457 @@
+## Problem 1
+
+### 1
+The likelihood function is
+$$
+\begin{align}
+L(K,r,\psi|\hat{N}) &
+\propto \prod_{\text{abserved y}}
+\frac{1}{\hat{N}_y\sqrt{\log(1+\psi^2)}}\exp(-\frac{[\log(\hat{N}_y)-\log(N_y)]^2}{2\log(1+\psi^2)}) \\
+& \propto\prod_{\text{abserved y}}
+\frac{1}{\hat{N}_y\sqrt{\log(1+\psi^2)}}\exp(-\frac{[\log(\hat{N}_y)-\log(N_{y-1}-C_{y-1}+rN_{y-1}(1-(\frac{N_{y-1}}{K})^2))]^2}{2\log(1+\psi^2)}).
+\end{align}
+$$
+The posterior density is
+$$
+\begin{align}
+p(K,r,\psi|\hat{N})
+& \propto p(K)p(r)p(\psi)L(K,r,\psi|\hat{N}) \\
+& \propto \psi(2-\psi)^9\prod_{\text{abserved y}}
+\frac{1}{\hat{N}_y\sqrt{\log(1+\psi^2)}}\exp(-\frac{[\log(\hat{N}_y)-\log(N_{y-1}-C_{y-1}+rN_{y-1}(1-(\frac{N_{y-1}}{K})^2))]^2}{2\log(1+\psi^2)}) .
+\end{align}
+$$
+
+### 2
+```{r}
+data = read.table("./whalecatch.dat",header = T,sep=",")
+C = data$C
+data = read.table("./whalesurvey.dat",header = T)
+y = data$datyears
+Nt = data$Xt
+
+mean_by_dyna = function(K, r){
+  output = c()
+  N_run = K
+  idx = 1
+  for(i in 1:101){
+    N_run = N_run-C[i]+r*N_run*(1-(N_run/K)^2)
+    if(i == (y[idx]-1)){
+      output[idx] = N_run
+      N_run = Nt[idx]
+      if(idx <= 5) idx = idx + 1
+    }
+  }
+  return(output)
+}
+likelihood = function(k,r,psi){
+  a = psi*(2-psi)^9 / (log(1+psi^2))^3
+  b = prod(exp(-(log(Nt)-log(mean_by_dyna(k,r)))^2/2/log(1+psi^2)))
+  return(a*b)
+}
+g_k = function(eps, K){
+  return(pnorm(eps, 0, 200) * ((eps+K)<=100000) * ((eps+K)>=7000) )
+}
+g_r = function(eps, r){
+  return( punif(eps, max(0.001,r-0.03)-r , min(0.1,r+0.03)-r) )
+}
+g_psi = function(eps, psi){
+  return(pnorm(eps, 0, 0.1) * ((eps+psi)<=2) * ((eps+psi)>0) )
+}
+Gibbs = function(init, n){
+  k = init[1]; r = init[2]; psi = init[3]
+  acpt_k = 0;acpt_r = 0; acpt_psi = 0
+  output = matrix(0, nrow = n, ncol = 3)
+  for(i in 1:n){
+    eps = rnorm(1, 0, 200)
+    while((eps+k<7000) || (eps+k>100000)){eps = rnorm(1, 0, 200)}
+    R = likelihood(k+eps,r,psi) * g_k(eps, k) / likelihood(k,r,psi) / g_k(-eps, k+eps)
+    if(runif(1) < R) {k = k + eps; acpt_k = acpt_k + 1}
+    
+    eps = runif(1, max(0.001,r-0.03)-r , min(0.1,r+0.03)-r)
+    R = likelihood(k+eps,r,psi) * g_r(eps, r) / likelihood(k,r,psi) / g_r(-eps, r+eps)
+    if(runif(1) < R) {r = r + eps; acpt_r = acpt_r + 1}
+    
+    eps = rnorm(1, 0, 0.1)
+    while((eps+psi<=0) || (eps+psi>2)){eps = rnorm(1, 0, 0.1)}
+    R = likelihood(k+eps,r,psi) * g_psi(eps, psi) / likelihood(k,r,psi) / g_psi(-eps, psi+eps)
+    if(runif(1) < R) {psi = psi + eps; acpt_psi = acpt_psi + 1}
+    
+    output[i, 1] = k;output[i, 2] = r;output[i, 3] = psi
+  }
+  return(list(sample = output, accept = c(acpt_k/n, acpt_r/n, acpt_psi/n)))
+}
+init = c(10000, 0.03, 0.3); n = 42000
+output = Gibbs(init, n)
+samples = output$sample
+acceptence_rate = output$accept
+burn_in = 15000
+
+acceptence_rate
+
+par(mfrow=c(3,1))
+plot(samples[burn_in:n, 1],type="l",main = "K path after burn in")
+plot(samples[burn_in:n, 2],type="l",main = "r path after burn in")
+plot(samples[burn_in:n, 3],type="l",main = "psi path after burn in")
+
+par(mfrow=c(3,1))
+acf(samples[burn_in:n, 1])
+acf(samples[burn_in:n, 2])
+acf(samples[burn_in:n, 3])
+```
+
+### 3
+```{r}
+g_k = function(eps, K, delta){
+  return(pnorm(eps, 0, 200 * delta) * ((eps+K)<=100000) * ((eps+K)>=7000) )
+}
+g_r = function(eps, r, delta){
+  return( punif(eps, max(0.001,r-0.03*delta)-r , min(0.1,r+0.03*delta)-r) )
+}
+g_psi = function(eps, psi, delta){
+  return(pnorm(eps, 0, 0.1 * delta) * ((eps+psi)<=2) * ((eps+psi)>0) )
+}
+Gibbs_ada = function(init, n){
+  k = init[1]; r = init[2]; psi = init[3]
+  delta_k = init[4];delta_r = init[5];delta_psi = init[6]
+  acpt_k = 0;acpt_r = 0; acpt_psi = 0
+  output = matrix(0, nrow = n, ncol = 3)
+  acceptance = matrix(0, nrow = n%/%1500, ncol = 3)
+  for(i in 1:n-1){
+    if(i %% 1500 == 0) {
+      delta_k = exp(log(delta_k) + (-1)^(1+((acpt_k/1500)>0.44)) / (i+1)^(1/3))
+      acceptance[i%/%1500+1, 1] = acpt_k/1500
+      acpt_k = 0}
+    eps = rnorm(1, 0, 200*delta_k)
+    while((eps+k<7000) || (eps+k>100000)){eps = rnorm(1, 0, 200*delta_k)}
+    R = likelihood(k+eps,r,psi) * g_k(eps, k, delta_k) / likelihood(k,r,psi) / g_k(-eps, k+eps, delta_k)
+    if(runif(1) < R) {k = k + eps; acpt_k = acpt_k + 1}
+    
+    if(i %% 1500 == 0) {
+      delta_r = exp(log(delta_r) + (-1)^(1+((acpt_r/1500)>0.44)) / (i+1)^(1/3))
+      acceptance[i%/%1500+1, 2] = acpt_r/1500
+      acpt_r = 0}
+    eps = runif(1, max(0.001,r-0.03*delta_r)-r , min(0.1,r+0.03*delta_r)-r)
+    R = likelihood(k+eps,r,psi) * g_r(eps, r, delta_r) / likelihood(k,r,psi) / g_r(-eps, r+eps, delta_r)
+    if(runif(1) < R) {r = r + eps; acpt_r = acpt_r + 1}
+    
+    if(i %% 1500 == 0) {
+      delta_psi = exp(log(delta_psi) + (-1)^(1+((acpt_psi/1500)>0.44)) / (i+1)^(1/3))
+      acceptance[i%/%1500+1, 3] = acpt_psi/1500
+      acpt_psi = 0}
+    eps = rnorm(1, 0, 0.1*delta_psi)
+    while((eps+psi<=0) || (eps+psi>2)){eps = rnorm(1, 0, 0.1*delta_psi)}
+    R = likelihood(k+eps,r,psi) * g_psi(eps, psi, delta_psi) / likelihood(k,r,psi) / g_psi(-eps, psi+eps, delta_psi)
+    if(runif(1) < R) {psi = psi + eps; acpt_psi = acpt_psi + 1}
+    
+    output[i, 1] = k;output[i, 2] = r;output[i, 3] = psi
+  }
+  return(list(sample = output, accept = acceptance))
+}
+init = c(10000, 0.03, 0.3, 1, 1, 1); n = 42000
+output = Gibbs_ada(init, n)
+samples = output$sample
+acceptence_rate = output$accept
+burn_in = 15000
+
+par(mfrow=c(3,1))
+plot(samples[burn_in:n, 1],type="l",main = "K path after burn in")
+plot(samples[burn_in:n, 2],type="l",main = "r path after burn in")
+plot(samples[burn_in:n, 3],type="l",main = "psi path after burn in")
+
+par(mfrow=c(3,1))
+acf(samples[burn_in:n, 1])
+acf(samples[burn_in:n, 2])
+acf(samples[burn_in:n, 3])
+
+par(mfrow=c(3,1))
+plot(acceptence_rate[4:(n%/%1500),1],type="l",main = "Accepttratio for K")
+plot(acceptence_rate[4:(n%/%1500),2],type="l",main = "Accepttratio for r")
+plot(acceptence_rate[4:(n%/%1500),3],type="l",main = "Accepttratio for psi")
+```
+
+
+## Problem 9.1
+$$
+E^*[R^*] = E^*[R(\chi^*, \hat{F})] = E^*[\bar{X}^*-\bar{X}] = 0,
+$$
+$$
+var^*[R^*] = var^*[R(\chi^*, \hat{F})] = var^*[\bar{X}^*-\bar{X}] = \frac{1}{n}var^*[\bar{X}^*] = \frac{1}{n}\bar{X}(1-\bar{X}).
+$$
+
+## 9.2
+
+### a
+It is trivial that
+$$
+E^*[\bar{X}^*] = E^*[X^*] = \bar{X},
+$$
+and 
+$$
+var^*[\bar{X}^*] = \frac{1}{n}var^*[X^*] = \frac{1}{n^2}\sum_{i}(x_i-\bar{x})^2 = \frac{\hat{\mu}_2}{n^2}.
+$$
+
+### b
+
+$$
+E^*[R(\chi^*, \hat{F})] = E^*[g(\bar{X}^*)-g(\bar{X})] = E^*[g(\bar{X}^*)]-g(\bar{X}),
+$$
+use Taylor series to $g(\bar{X}^*)$ at $\bar{X}$,
+$$
+\begin{align}
+E^*[g(\bar{X}^*)] 
+& = E^*[g(\bar{X})+g'(\bar{X})(\bar{X}^*-\bar{X})+\frac{g''(\bar{X})}{2}(\bar{X}^*-\bar{X})^2+\frac{g'''(\bar{X})}{6}(\bar{X}^*-\bar{X})^3+\cdots] \\
+& = g(\bar{X})+\frac{g''(\bar{X})}{2}E^*[(\bar{X}^*-\bar{X})^2]+\frac{g'''(\bar{X})}{6}E^*[(\bar{X}^*-\bar{X})^3+\cdots]\\
+& = g(\bar{X})+\frac{g''(\bar{X})}{2}\frac{\hat{\mu}_2}{n^2}+\frac{g'''(\bar{X})}{6}\frac{\hat{\mu}_3}{n^3}+\cdots],
+\end{align}
+$$
+therefore,
+$$
+E^*[R(\chi^*, \hat{F})] = \frac{g''(\bar{X})}{2}\frac{\hat{\mu}_2}{n^2}+\frac{g'''(\bar{X})}{6}\frac{\hat{\mu}_3}{n^3}+\cdots].
+$$
+Similarly we have
+$$
+var^*[R(\chi^*, \hat{F})] = \frac{g'(\bar{X})^2\hat{\mu}_2}{n^2}-\frac{g''(\bar{X})^2}{4n^3}(\hat{\mu}_2-\frac{\hat{\mu}_4}{n})+\cdots].
+$$
+
+## Problem 9.4
+
+### a
+For residuals,
+```{r}
+data = read.table('./salmon.dat',header = TRUE)
+r = 1/data$recruits
+s = 1/data$spawners
+reg_model = lm(r ~ s)
+beta0 = as.numeric(reg_model$coefficients[1]);beta1 = as.numeric(reg_model$coefficients[2])
+B = 1000
+populations = c()
+for(i in 1:B){
+  boots_res = sample(1:40, 40, replace = T)
+  boots_y = reg_model$fitted.values + reg_model$residuals[boots_res]
+  model = lm(boots_y ~ s)
+  populations[i] = (1-as.numeric(model$coefficients[2]))/as.numeric(model$coefficients[1])
+}
+quantile(populations, c(0.025,0.975))
+mean(populations - (1-beta1)/beta0)
+sd(populations)
+hist(populations,breaks=20)
+```
+
+For cases,
+```{r}
+populations = c()
+for(i in 1:B){
+  boots = sample(1:40, 40, replace = T)
+  model = lm(r[boots] ~ s[boots])
+  populations[i] = (1-as.numeric(model$coefficients[2]))/as.numeric(model$coefficients[1])
+}
+quantile(populations, c(0.025,0.975))
+mean(populations - (1-beta1)/beta0)
+sd(populations)
+hist(populations,breaks=20)
+```
+
+Bootstrap the cases has lower bias and variance. This methods seems more stable.
+
+### b
+```{r}
+bias_corrected_esti = c()
+for(j in 1:(B/100)){
+  bias = c()
+  for(i in 1:B){
+    boots = sample(1:40, 40, replace = T)
+    model = lm(r[boots] ~ s[boots])
+    bias[i] = (1-as.numeric(model$coefficients[2]))/as.numeric(model$coefficients[1]) - (1-beta1)/beta0
+  }
+  bias_corrected_esti[j] = (1-beta1)/beta0 + mean(bias)
+}
+mean(bias_corrected_esti)
+sd(bias_corrected_esti)
+```
+
+## Problem 9.5
+
+### a
+```{r}
+data = read.table('./cancersurvival.dat',header = TRUE)
+stomach = log(data[data$disease==1,1])
+breast = log(data[data$disease==2,1])
+B = 1000
+boots_s = c()
+boots_b = c()
+for(i in 1:B){
+  sam = sample(stomach, 13, replace = T)
+  boots_s[i] = (mean(sam)-mean(stomach)) / sd(sam) * sqrt(13)
+  sam = sample(breast, 11, replace = T)
+  boots_b[i] = (mean(sam)-mean(breast)) / sd(sam) * sqrt(11)
+}
+mean(stomach) - quantile(boots_s, c(0.975,0.025)) * sd(stomach) / sqrt(13)
+mean(breast) - quantile(boots_b, c(0.975,0.025)) * sd(breast) / sqrt(11)
+```
+
+### b
+```{r}
+boots_diff = c()
+for(i in 1:B){
+  samples = sample(c(stomach,breast))
+  boots_diff[i] = mean(samples[1:13])-mean(samples[14:24])
+}
+quantile(boots_diff, c(0.025,0.975))
+mean(stomach)-mean(breast)
+```
+The test statistic lies out of the 95% CI, then reject the null hypothesis. There is difference.
+
+### c
+```{r}
+exp(quantile(boots_s, c(0.025,0.975)))
+exp(quantile(boots_b, c(0.025,0.975)))
+
+boots_s_ori = c()
+boots_b_ori = c()
+for(i in 1:B){
+  boots_s_ori[i] = mean(sample(exp(stomach), 10, replace = T))
+  boots_b_ori[i] = mean(sample(exp(breast), 10, replace = T))
+}
+quantile(boots_s_ori, c(0.025,0.975))
+quantile(boots_b_ori, c(0.025,0.975))
+```
+
+Bootstrap on the original scale, the CIs move right on the real line. $\exp(\frac{1}{n}\sum\log(x_i))<\frac{1}{n}\sum x_i$ when $x_i$ are large enough.
+
+## Problem 9.7
+```{r}
+samples = rcauchy(1000)
+B = 10000
+boots_mean = c()
+for(i in 1:B){
+  boots_mean[i] = mean(sample(samples, replace = T))
+}
+hist(boots_mean, breaks = 40)
+```
+
+The empirical distribution of the mean of the cauchy distribution samples is not symmetric.
+
+```{r}
+theta = 5
+samples = runif(1000, 0, 5)
+boots_max = c()
+for(i in 1:B){
+  boots_max[i] = max(sample(samples, replace = T))
+}
+hist(boots_max, breaks = 40)
+mean(boots_max)
+sd(boots_max)
+```
+
+I think the problem for this is the bootstrap estimation for $theta$ always seems to underestimate the true value, because $X^*_{(n*)}\le X_{(n)}$.
+
+
+## Problem 2
+
+### 1
+$$
+\begin{align}
+\bar{X} & = \frac{1}{n}\sum_{i=1}^nX_i \\
+& = \frac{1}{n}\sum_{i=1}^n\sum_{j=1}^i\alpha^{j-1}\epsilon_j \\
+& = \frac{1}{n}\sum_{i=1}^n\epsilon_i\sum_{j=0}^{n-i}\alpha^{j} \\
+& = \frac{1}{n}\sum_{i=1}^n\frac{1-\alpha^{n-i+1}}{1-\alpha}\epsilon_i,
+\end{align}
+$$
+then, $\bar{X} \sim N(0, \sum_{i=1}^n\frac{(1-\alpha^{n-i+1})^2}{(1-\alpha)^2n^2})$.
+
+### 2
+```{r}
+epsilons = rnorm(100)
+xs = c()
+xs[1] = epsilons[1]
+for(i in 2:100){
+  xs[i] = xs[i-1]*0.8+epsilons[i]
+}
+
+var_true = sqrt(sum((1-0.8^(101-(1:100)))^2/100^2/(1-0.8)^2))
+true_sample = rnorm(1000, 0, var_true)
+
+boots_x = c()
+B = 1000
+for(i in 1:B){
+  boots_x[i] = mean(sample(xs, replace = T))
+}
+mean(boots_x)
+sd(boots_x)
+plot(density(boots_x),col = 'red',xlim = c(-1,1))
+lines(density(true_sample))
+```
+
+The red line is the bootstraped density while the black is the true density.
+
+### 3
+For the following plots, the red line is the bootstraped density while the black is the true density.
+
+The nonmoving block bootstrap:
+```{r}
+b = 2
+Blocks = matrix(xs, nrow = b, byrow = T)
+boots_x_c = c()
+for(k in 1:B){
+  one_sample = matrix(0, nrow = b, ncol = (100%/%b))
+  for (i in 1:b){
+    one_sample[i,] = Blocks[i,][sample(1:(100%/%b), 100%/%b, replace = T)]
+  }
+  boots_x_c[k] = mean(one_sample)
+}
+mean(boots_x_c)
+sd(boots_x_c)
+plot(density(boots_x_c),col = 'red',xlim = c(-1,1), main='2 blocks')
+lines(density(true_sample))
+
+b = 4
+Blocks = matrix(xs, nrow = b, byrow = T)
+boots_x_c = c()
+for(k in 1:B){
+  one_sample = matrix(0, nrow = b, ncol = (100%/%b))
+  for (i in 1:b){
+    one_sample[i,] = Blocks[i,][sample(1:(100%/%b), 100%/%b, replace = T)]
+  }
+  boots_x_c[k] = mean(one_sample)
+}
+mean(boots_x_c)
+sd(boots_x_c)
+plot(density(boots_x_c),col = 'red',xlim = c(-1,1), main='4 blocks')
+lines(density(true_sample))
+
+
+b = 10
+Blocks = matrix(xs, nrow = b, byrow = T)
+boots_x_c = c()
+for(k in 1:B){
+  one_sample = matrix(0, nrow = b, ncol = (100%/%b))
+  for (i in 1:b){
+    one_sample[i,] = Blocks[i,][sample(1:(100%/%b), 100%/%b, replace = T)]
+  }
+  boots_x_c[k] = mean(one_sample)
+}
+mean(boots_x_c)
+sd(boots_x_c)
+plot(density(boots_x_c),col = 'red',xlim = c(-1,1), main='10 blocks')
+lines(density(true_sample))
+```
+
+The variance of the estimate decreases when the number of blocks increases.
+
+The moving block bootstrap:
+```{r}
+l = 10
+boots_x_c = c()
+for(k in 1:B){
+  one_sample = c()
+  for (i in 1:(100-l+1)){
+    one_sample = c(one_sample, xs[i:(l+i-1)][sample(1:l, 1)])
+  }
+  boots_x_c[k] = mean(one_sample)
+}
+mean(boots_x_c)
+sd(boots_x_c)
+plot(density(boots_x_c),col = 'red',xlim = c(-1,1), main='block length = 10')
+lines(density(true_sample))
+```
+

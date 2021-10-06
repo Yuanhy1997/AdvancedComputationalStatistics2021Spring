@@ -1,0 +1,353 @@
+## Problem 2.1
+### c
+```{r}
+data = c(1.77, -0.23, 2.76, 3.80, 3.47, 56.75, -1.34, 4.24, 
+         -2.44, 3.29, 3.71, -2.40, 4.53, -0.07, -1.05, -13.87, 
+         -2.53, -1.75, 0.27, 43.21 )
+fix_point_func = function(x, scale){
+  scale * mean( (2*(data-x)) / (1+(data-x)^2) ) + x
+}
+fix_point = function(start_point = -1, scale = 1, max_iter = 300, epsilon = 0.0001){
+  x1 = start_point
+  x2 = fix_point_func(x1, scale)
+  count = 1
+  while(abs(x2-x1)>epsilon && count<max_iter){
+    x1 = x2
+    x2 = fix_point_func(x1, scale)
+    count = count + 1
+  }
+  return(c(start_point, x2, count))
+}
+fix_point(scale = 1)[2]
+fix_point(scale = 0.64)[2]
+fix_point(scale = 0.25)[2]
+```
+The result from three different scaling choices are as aboves. Then we try different scaling choices and starting values respectively:
+```{r}
+diff_start_point = sapply(seq(-2, 4, length.out = 10), FUN = fix_point)
+data.frame(diff_start_point, row.names = c("start_point", "result", "iter_step"))
+diff_scale = sapply(seq(0.1, 4, length.out = 10), FUN = fix_point, start_point = 1, max_iter = 400, epsilon = 0.0001)
+data.frame(rbind(seq(0.1, 4, length.out = 10), diff_scale[2:3,]), row.names = c("scaling", "result", "iter_step"))
+```
+It shows that the converge points are sensitive to the start points, the method tends to converge to the result near the start point. And the convegence speed is sensitive to the start point and scaling choices both under the same stopping criterion. Very small scaling choice will make the algorithm converge too slow.
+
+### d
+```{r}
+dev1likelihood = function(x){
+  mean( (2*(data-x)) / (1+(data-x)^2) )
+}
+secant = function(start_point = c(-2,-1), epsilon = 0.0001, max_iter = 200){
+  count = 1
+  x1 = start_point[1]
+  x2 = start_point[2]
+  while((abs(x1-x2)>epsilon) & (count < max_iter)){
+    buffer = x1 - dev1likelihood(x1) * (x2 - x1) / (dev1likelihood(x2) - dev1likelihood(x1))
+    x1 = x2
+    x2 = buffer
+    count = count + 1
+  }
+  return(c('result'=x2, 'step' = count))
+}
+secant(c(-2,-1))
+secant(c(-3,3))
+secant(c(-2,2))
+secant(c(-1,2))
+secant(c(0,2))
+secant(c(1,2))
+```
+These results with different strat points show that differnt start points will have the algorithm converge to different extreme point, not necessarily the global optima. And it tends to converge to the point that covered by the start interval.
+
+### e
+```{r}
+dev2likelihood = function(x){
+  mean( (2*(data-x)^2-2) / (1+(data-x)^2)^2 )
+}
+newton_raphson = function(start_point = -1, epsilon = 0.0001, max_iter = 200){
+  count = 1
+  x1 = start_point
+  x2 = x1 - dev1likelihood(x1) / dev2likelihood(x1)
+  while((abs(x1-x2)>epsilon) & (count < max_iter)){
+    x1 = x2
+    x2 = x1 - dev1likelihood(x1) / dev2likelihood(x1)
+    count = count + 1
+  }
+  return(c('result'=x2, 'step' = count))
+}
+bisection = function(from = -1, to = 1, epsilon = 0.0001){
+  if(dev1likelihood(from)*dev1likelihood(to)>=0) return('Fail to find solution.')
+  x1 = from
+  x2 = to
+  count = 1
+  while(abs(x1-x2)>epsilon){
+    count = count + 1
+    y = sapply(c(x1,(x1+x2)/2,x2), FUN = dev1likelihood)
+    if(y[1]*y[2] < 0) x2 = (x1+x2)/2
+    else if(y[3]*y[2] < 0) x1 = (x1+x2)/2
+    else return('Fail to find solution.')
+  }
+  return(c((x1+x2)/2, count))
+}
+data_gen = function(theta){
+  rnorm(20, mean = theta, sd = 1)
+}
+
+theta = 0
+data = data_gen(theta)
+result = data.frame(cbind(fix_point(scale = 1)[2:3], secant(c(-1,0)), 
+                 newton_raphson(-1), bisection(-1, 2)), 
+           row.names = c("result", "iter_step"))
+colnames(result) = c("fix_point", "secant", "newton", "bisection")
+result
+
+theta = 1
+data = data_gen(theta)
+result = data.frame(cbind(fix_point(scale = 1)[2:3], secant(c(-1,0)), 
+                 newton_raphson(-1), bisection(-1, 2)), 
+           row.names = c("result", "iter_step"))
+colnames(result) = c("fix_point", "secant", "newton", "bisection")
+result
+```
+Compare different method, their speed is pretty similar, it is partly because the problem is too simple in this setting. And the fix point iteration seems the most stable. With slight change of teh distribution that generates data, newton and secant method fail to converge. And the bisection method has a critical problem is that the starting interval have to cover the local optima. If the starting interval do not contain the local optima, the algorithm fails.
+
+## Problem 2.5
+### a
+Given the data samples $(N_i, b_{i1}, b_{12})$, the log-likelihood under Poisson distribution assumption is
+$$
+\begin{align}
+L(\alpha_1, \alpha_2) &= \sum_i \log(\frac{\lambda_i^{N_i}}{N_i!}e^{-\lambda_i}) \\
+&= \sum_i \log(\frac{(\alpha_1b_{i1}+\alpha_2b_{i2})^{N_i}}{N_i!}e^{-\alpha_1b_{i1}+\alpha_2b_{i2}}) \\
+&= \sum_i N_i\log(\alpha_1b_{i1}+\alpha_2b_{i2}) -\alpha_1b_{i1}-\alpha_2b_{i2}-\log(N_i!)
+\end{align}
+$$
+The gradient $L'(\alpha_1, \alpha_2)$ is
+$$
+\begin{align}
+\frac{\partial L}{\partial\alpha_1} & = \sum_i \frac{N_ib_{i1}}{\alpha_1b_{i1}+\alpha_2b_{i2}} -b_{i1} \\
+\frac{\partial L}{\partial\alpha_2} & = \sum_i \frac{N_ib_{i2}}{\alpha_1b_{i1}+\alpha_2b_{i2}} -b_{i2}
+\end{align}
+$$
+The Hessian $L''(\alpha_1, \alpha_2)$ is
+$$
+\begin{align}
+-\sum_i \frac{N_ib_{i1}^2}{(\alpha_1b_{i1}+\alpha_2b_{i2})^2}, 
+& -\sum_i \frac{N_ib_{i1}b_{i2}}{(\alpha_1b_{i1}+\alpha_2b_{i2})^2}\\
+-\sum_i \frac{N_ib_{i2}b_{i1}}{(\alpha_1b_{i1}+\alpha_2b_{i2})^2}, 
+& -\sum_i \frac{N_ib_{i2}^2}{(\alpha_1b_{i1}+\alpha_2b_{i2})^2}
+\end{align}
+$$
+The Newton-Raphson update function is
+$$
+\alpha^{(t+1)} = \alpha^{t}-L''(\alpha^t)^{-1}L'(\alpha^t)
+$$
+where $\alpha = (\alpha_1, \alpha_2)$.
+
+### b
+The fisher information matrix $I(\alpha)$ is
+$$
+\begin{align}
+\sum_{i} \frac{b_{i1}^2}{\alpha_1b_{i1}+\alpha_2b_{i2}}, 
+& \sum_{i} \frac{b_{i1}b_{i2}}{\alpha_1b_{i1}+\alpha_2b_{i2}}\\
+\sum_{i} \frac{b_{i1}b_{i2}}{\alpha_1b_{i1}+\alpha_2b_{i2}},
+& \sum_{i} \frac{b_{i2}^2}{\alpha_1b_{i1}+\alpha_2b_{i2}}
+\end{align}
+$$
+The fisher scoring method update function is
+$$
+\alpha^{(t+1)} = \alpha^{t}+ I(\alpha)L'(\alpha^t)
+$$
+where $\alpha = (\alpha_1, \alpha_2)$.
+
+### c
+```{r}
+data = read.table("./oilspills.dat", header = T)
+dev1 = function(a1, a2){
+  c(sum(data$spills*data$importexport / (a1*data$importexport+a2*data$domestic) - data$importexport), sum(data$spills*data$domestic / (a1*data$importexport+a2*data$domestic) - data$domestic))
+}
+dev2 = function(a1, a2){
+     matrix(c(
+        -sum(data$spills*data$importexport^2 / (a1*data$importexport+a2*data$domestic)^2),
+        -sum(data$spills*data$importexport*data$domestic / (a1*data$importexport+a2*data$domestic)^2),
+        -sum(data$spills*data$domestic^2 / (a1*data$importexport+a2*data$domestic)^2),
+        -sum(data$spills*data$importexport*data$domestic / (a1*data$importexport+a2*data$domestic)^2)
+     ), nrow = 2, byrow = T)
+}
+fisherInfo = function(a1, a2){
+     matrix(c(
+        sum(data$importexport^2 / (a1*data$importexport+a2*data$domestic)),
+        sum(data$importexport*data$domestic / (a1*data$importexport+a2*data$domestic)),
+        sum(data$domestic^2 / (a1*data$importexport+a2*data$domestic)),
+        sum(data$importexport*data$domestic / (a1*data$importexport+a2*data$domestic))
+     ), nrow = 2, byrow = T)
+}
+newton = function(init = c(10,10), max_iter = 300, epsilon = 0.0001){
+  x1 = init
+  x2 = x1 - solve(dev2(x1[1], x1[2])) %*% dev1(x1[1], x1[2])
+  count = 1
+  while(count < max_iter && sqrt(sum((x1-x2)^2)) > epsilon){
+    x1 = x2
+    x2 = x1 - solve(dev2(x1[1], x1[2])) %*% dev1(x1[1], x1[2])
+    count = count + 1
+  }
+  return(c('x'=x2[1], 'y' = x2[2], 'step' = count))
+}
+fisher = function(init = c(10,10), max_iter = 300, epsilon = 0.0001){
+  x1 = init
+  x2 = x1 + solve(fisherInfo(x1[1], x1[2])) %*% dev1(x1[1], x1[2])
+  count = 1
+  while(count < max_iter && sqrt(sum((x1-x2)^2)) > epsilon){
+    x1 = x2
+    x2 = x1 + solve(fisherInfo(x1[1], x1[2])) %*% dev1(x1[1], x1[2])
+    count = count + 1
+  }
+  return(c('x'=x2[1], 'y' = x2[2], 'step' = count))
+}
+newton(c(2,2))
+fisher(c(2,2))
+fisher(c(20,10))
+```
+The fisher scoring method converges faster than Newton, and fisher scoring is less sensetive to the initial point while Newton method may fail when start points are far from the optima.
+
+### d
+```{r}
+se1 = sqrt(solve(fisherInfo(fisher(c(2,2))[1], fisher(c(2,2))[2])[1,1]))
+se2 = sqrt(solve(fisherInfo(fisher(c(2,2))[1], fisher(c(2,2))[2])[2,2]))
+```
+The standard error of $\alpha_1 = 0.247$ is larger that $\alpha_2=0.326$.
+
+## Problem 2.7
+```{r}
+f = function(x){
+  (x[1]^2+x[2]-11)^2+(x[1]+x[2]^2-7)^2
+}
+nelder_mead = function(start, epsilon = 0.001, max_iter = 200, decrease = F){
+  buffer_matrix = cbind(start, apply(start, 1, FUN = f))
+  count = 1
+  alphar = 1
+  alphae = 2
+  alphac = 0.5
+  alphas = 0.5
+  while(sqrt(abs(sum(buffer_matrix[1, 1:2]-buffer_matrix[2, 1:2])+sum(buffer_matrix[1, 1:2]-buffer_matrix[3, 1:2])))>epsilon && count < max_iter){
+    count = count + 1
+    buffer_matrix = buffer_matrix[order(buffer_matrix[,3], decreasing = decrease),]
+    
+    # compute orient
+    c = 1/2 * c(sum(buffer_matrix[2:3,1]), sum(buffer_matrix[2:3,2]))
+    #reflect
+    xr = c + alphar * (c - buffer_matrix[1,1:2])
+    if(buffer_matrix[3,3]>=f(xr) && f(xr)>buffer_matrix[1,3]){
+      buffer_matrix[1,1] = xr[1]
+      buffer_matrix[1,2] = xr[2]
+      buffer_matrix[1,3] = f(xr)
+    }
+    else if(f(xr)>buffer_matrix[3,3]){
+      #go to expension
+      xe = c + alphae * (xr - c)
+      if(f(xe)>f(xr)){
+        buffer_matrix[1,1] = xe[1]
+        buffer_matrix[1,2] = xe[2]
+        buffer_matrix[1,3] = f(xe)
+      }
+      else{
+        buffer_matrix[1,1] = xr[1]
+        buffer_matrix[1,2] = xr[2]
+        buffer_matrix[1,3] = f(xr)
+      }
+    }
+    else{
+      #go to contraction
+      if(buffer_matrix[2,3]>=f(xr) && f(xr)>buffer_matrix[1,3]){
+        #outer contraction
+        xo = c + alphac * (xr - c)
+        if(f(xo)>=f(xr)){
+          buffer_matrix[1,1] = xo[1]
+          buffer_matrix[1,2] = xo[2]
+          buffer_matrix[1,3] = f(xo)
+        }
+        else{
+          #go to shrinkage
+          buffer_matrix[1,1] = (1-alphas) * buffer_matrix[3,1] + alphas * (buffer_matrix[1,1])
+          buffer_matrix[1,2] = (1-alphas) * buffer_matrix[3,2] + alphas * (buffer_matrix[1,2])
+          buffer_matrix[1,3] = f(buffer_matrix[1,1:2])
+          buffer_matrix[2,1] = (1-alphas) * buffer_matrix[3,1] + alphas * (buffer_matrix[2,1])
+          buffer_matrix[2,2] = (1-alphas) * buffer_matrix[3,2] + alphas * (buffer_matrix[2,2])
+          buffer_matrix[2,3] = f(buffer_matrix[2,1:2])
+        }
+      }
+      else{
+        #inner contraction
+        xi = c + alphac * (buffer_matrix[1,1:2] - c)
+        if(f(xi)>buffer_matrix[1,3]){
+          buffer_matrix[1,1] = xi[1]
+          buffer_matrix[1,2] = xi[2]
+          buffer_matrix[1,3] = f(xi)
+        }
+        else{
+          #go to shrinkage
+          buffer_matrix[1,1] = (1-alphas) * buffer_matrix[3,1] + alphas * (buffer_matrix[1,1])
+          buffer_matrix[1,2] = (1-alphas) * buffer_matrix[3,2] + alphas * (buffer_matrix[1,2])
+          buffer_matrix[1,3] = f(buffer_matrix[1,1:2])
+          buffer_matrix[2,1] = (1-alphas) * buffer_matrix[3,1] + alphas * (buffer_matrix[2,1])
+          buffer_matrix[2,2] = (1-alphas) * buffer_matrix[3,2] + alphas * (buffer_matrix[2,2])
+          buffer_matrix[2,3] = f(buffer_matrix[2,1:2])
+        }
+      }
+    }
+  }
+  return(c(buffer_matrix[3,1:2],'step' = count))
+}
+#maximum
+start_points = cbind(x = c(0,0,3), y = c(0,3,3))
+nelder_mead(start_points)
+#minimum
+f = function(x){
+  -(x[1]^2+x[2]-11)^2-(x[1]+x[2]^2-7)^2
+}
+start_points = cbind(x = c(0,0,3), y = c(0,3,3))
+nelder_mead(start_points)
+start_points = cbind(x = c(0,0,-3), y = c(0,-3,-3))
+nelder_mead(start_points)
+start_points = cbind(x = c(0,0,-3), y = c(0,3,3))
+nelder_mead(start_points)
+start_points = cbind(x = c(0,0,3), y = c(0,-3,-3))
+nelder_mead(start_points)
+```
+The local maximum and minimum are found within several iteration steps, and the result tends to converge to the local optima covered by the initial triangle.
+And the derivative-based procedure will work fine, because the function has continuous second derivative, and it is easily computed.
+For example,
+```{r}
+dev1 = function(x, y){
+  c(4*(x^2+y-11)*x + 2*(x+y^2-7), 2*(x^2+y-11) + 4*(x+y^2-7)*y)
+}
+dev2 = function(x, y){
+     matrix(c(12*x^2+4*(y-11)+2, 4*x+4*y, 4*x+4*y, 2+12*y^2+4*(x-7)), nrow = 2, byrow = T)
+}
+newton_method = function(init = c(0,0), max_iter = 300, epsilon = 0.0001){
+  x1 = init
+  x2 = x1 - solve(dev2(x1[1], x1[2])) %*% dev1(x1[1], x1[2])
+  count = 1
+  while(count < max_iter && sqrt(sum((x1-x2)^2)) > epsilon){
+    x1 = x2
+    x2 = x1 - solve(dev2(x1[1], x1[2])) %*% dev1(x1[1], x1[2])
+    count = count + 1
+  }
+  return(c('x'=x2[1], 'y' = x2[2], 'step' = count))
+}
+newton_method()
+```
+Thus, the derivative-based method converges much faster than nelder-mead. It is consistent with what is discussed above. 
+
+
+## Problem 2.8
+The first one is that it will take much more time to converge, because one more point is included so that the transfromation scheme becomes more complicated. Second, the vertice must maintain convex, more specific constrains must be designed when transforming.
+
+
+
+
+
+
+
+
+
+
+
+

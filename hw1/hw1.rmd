@@ -1,0 +1,203 @@
+## Problem 1
+### a
+```{r}
+data = c(1.77, -0.23, 2.76, 3.80, 3.47, 56.75, -1.34, 4.24, 
+         -2.44, 3.29, 3.71, -2.40, 4.53, -0.07, -1.05, -13.87, 
+         -2.53, -1.75, 0.27, 43.21 )
+likelihood = function(x){
+  -sum( log(pi*(1+(data-x)^2)) )
+}
+plot(x = seq(-6,6,0.01), y = sapply(seq(-6,6,0.01), FUN = likelihood), 'l',
+     main = 'Cauchy Log-likelihood Function', xlab = 'x', ylab = 'log-likelihood')
+dev1likelihood = function(x){
+  sum( (2*(data-x)) / (1+(data-x)^2) )
+}
+dev2likelihood = function(x){
+  sum( (2*(data-x)^2-2) / (1+(data-x)^2)^2 )
+}
+newton_raphson = function(start_point = 2, epsilon = 0.001, max_iter = 200){
+  count = 1
+  x1 = start_point
+  x2 = x1 - dev1likelihood(x1) / dev2likelihood(x1)
+  while((abs(x1-x2)>epsilon) & (count < max_iter)){
+    x1 = x2
+    x2 = x1 - dev1likelihood(x1) / dev2likelihood(x1)
+    count = count + 1
+  }
+  return(c(x2, count))
+}
+newton_raphson() 
+start_points = c(-11, -1, 0, 1.5, 4, 4.7, 7, 8, 38)
+sapply(start_points, FUN = newton_raphson)
+mean_start_point = mean(start_points)
+newton_raphson(mean_start_point)
+```
+### b
+``` {r}
+bisection = function(from = -1, to = 1, epsilon = 0.001){
+  if(dev1likelihood(from)*dev1likelihood(to)>=0) return('Fail to find solution.')
+  x1 = from
+  x2 = to
+  while(abs(x1-x2)>epsilon){
+    y = sapply(c(x1,(x1+x2)/2,x2), FUN = dev1likelihood)
+    if(y[1]*y[2] < 0) x2 = (x1+x2)/2
+    else if(y[3]*y[2] < 0) x1 = (x1+x2)/2
+    else return('Fail to find solution.')
+  }
+  return((x1+x2)/2)
+}
+bisection()
+bisection(from = 0, to = 2)
+```
+
+## Problem 2
+### a
+```{r}
+data = c(3.91, 4.85, 2.28, 4.06, 3.70, 4.04, 5.46, 3.53,
+         2.28, 1.96, 2.53, 3.88, 2.22, 3.47, 4.82, 2.46, 
+         2.99, 2.54, 0.52, 2.50)
+likelihood2 = function(theta){
+  sum( log( (1 - cos(data - theta)) / (2*pi) ) )
+}
+plot(x = seq(-pi,pi,0.01), y = sapply(seq(-pi,pi,0.01), FUN = likelihood2), 'l',
+     main = 'Log-likelihood Function', xlab = 'x', ylab = 'log-likelihood')
+
+```
+
+### b
+$$
+EX = \pi+\sin{\theta} \\
+\theta = \arcsin{(EX-\pi)} \\
+\hat{\theta} = \arcsin{(\bar{X}-\pi)}
+$$
+
+### c
+```{r}
+moment_est = asin(mean(data)-pi)
+dev1likelihood = function(x){
+  sum( -sin(data-x) / (1-cos(data-x)) )
+}
+dev2likelihood = function(x){
+  sum( 1 / (cos(data-x)-1) )
+}
+newton_raphson = function(start_point = 2, epsilon = 0.001, max_iter = 300){
+  count = 1
+  x1 = start_point
+  x2 = x1 - dev1likelihood(x1) / dev2likelihood(x1)
+  while((abs(x1-x2) > epsilon) && (count < max_iter)){
+    x1 = x2
+    x2 = x1 - dev1likelihood(x1) / dev2likelihood(x1)
+    count = count + 1
+  }
+  return(c(x2, count, start_point))
+}
+newton_raphson(moment_est)
+```
+
+### d
+```{r}
+out = sapply(seq(-pi, pi, length.out = 200), FUN = newton_raphson)
+data.frame(out, row.names = c("result", "iter_step", "init_point"))
+```
+
+
+### e 
+The two near point is 0.4893938 and 0.5209676, their corresponding solutions are -0.0119720 and 0.5219336.
+
+## Problem 3
+### a
+For those uncensored, it is trivial that the p.d.f is $f(t_i)$. For those censored, the probability at the censored time is $S(t_i)=P(T>t_i)$.
+$$
+\log L = \sum_i\left[(1-\omega_i)\log S(t_i) + \omega_i \log f(t_i)\right] \\
+= \sum_i\left[(1-\omega_i)(-\Lambda(t_i)\exp(x^T_i\beta)) + \omega_i (\log f(t_i)+x^T_i\beta-\Lambda(t_i)\exp(x^T_i\beta))\right] \\
+= \sum_i (\omega_i\log(\mu_i)-\mu_i) + \sum_i\omega_i\log(\frac{\lambda(t_i)}{\Lambda(t_i)})
+$$
+where $\mu_i = \Lambda(t_i)\exp(x^T_i\beta)$.
+
+### b
+```{r}
+data = c(6, 6, 6, 6, 7, 9, 10, 10, 11, 13, 
+         16, 17, 19, 20, 22, 23, 25, 32, 32,
+         34, 35, 1, 1, 2, 2, 3, 4, 4, 5, 5, 
+         8, 8, 8, 8, 11, 11, 12, 12, 15, 17, 22, 23)
+censor = c(0,1,1,1,1,0,0,
+           1,0,1,1,0,0,0,
+           1,1,0,0,0,0,0,
+           1,1,1,1,1,1,1,
+           1,1,1,1,1,1,1,
+           1,1,1,1,1,1,1)
+treatment = rep(0:1,each=21)
+likelihood = function(a, b1, b0){
+  lambda = a * data ^ (a-1)
+  lambda_cap = data ^ a
+  mu = lambda_cap * exp(b0+b1*treatment)
+  sum( censor * log(mu * lambda / lambda_cap) - mu )
+}
+likelihood(1,2,2)
+dev1likelihood = function(a, b1, b0){
+    c(sum(censor*log(data)-a*data^(a-1)*exp(b0+b1*treatment) + censor/a),
+      sum(censor*treatment - data^a*treatment*exp(b0+b1*treatment)),
+      sum(censor - data^a*exp(b0+b1*treatment)))
+}
+dev2likelihood = function(a, b1, b0){
+    ao = c(sum(-a*(a-1)*data^(a-2)*exp(b0+b1*treatment) - data^(a-1)*exp(b0+b1*treatment) - censor/a^2),
+          sum(-a*data^(a-1)*treatment*exp(b0+b1*treatment)),
+          sum(-data^(a-1)*exp(b0+b1*treatment)))
+    b1o = c(sum(-a*data^(a-1)*exp(b0+b1*treatment)*treatment),
+          sum(-data^a*treatment^2*exp(b0+b1*treatment)),
+          sum(-data^a*exp(b0+b1*treatment)*treatment))
+    b0o = c(sum(-a*data^(a-1)*exp(b0+b1*treatment)),
+          sum(-data^a*treatment*exp(b0+b1*treatment)),
+          sum(-data^a*exp(b0+b1*treatment)))
+    return(cbind(ao,b1o,b0o))
+}
+newton_raphson = function(start_point = c(1,1,1), epsilon = 0.01, max_iter = 3000){
+  count = 1
+  x1 = start_point
+  x2 = x1 - solve(dev2likelihood(x1[1],x1[2],x1[3])) %*% dev1likelihood(x1[1],x1[2],x1[3]) 
+  while((sum(abs(x1-x2)) > epsilon) && (count < max_iter)){
+    x1 = x2
+    x2 = x1 - solve(dev2likelihood(x1[1],x1[2],x1[3])) %*% dev1likelihood(x1[1],x1[2],x1[3])
+    count = count + 1
+  }
+  return(c(x2, count))
+}
+newton_raphson()
+```
+
+## Problem 4
+
+The non-linear programming problem is modeled as:
+$$
+\min_{x_1,x_2} x_2-x_1 \\ 
+\text{s.t.}\quad x_1,\ x_2 \ge 0,\\
+x_2-x_1 \ge 0,\\
+-(x_2+1)e^{-x_2} + (x_1+1)e^{-x_1} = 0.95
+$$
+Solve by R code:
+```{r}
+library(Rdonlp2)
+obj = function(x){
+  x[2]-x[1]
+}
+par.l = c(0, 0)
+par.u = c(Inf, Inf)
+constrain1 = function(x){
+  - (x[2]+1)*exp(-x[2]) + (x[1]+1)*exp(-x[1])
+}
+constrain2 = function(x){
+  x[2]-x[1]
+}
+nlin.l = c(0.95, 0)
+nlin.u = c(0.95, Inf)
+init_point = c(1,4)
+ret = donlp2(init_point, obj, par.u=par.u, par.l=par.l, 
+             nlin=list(constrain1, constrain2), 
+             nlin.u=nlin.u, nlin.l=nlin.l)
+ret$par
+```
+The narrowest possible interval containing 95% of the posterior probability is $[0.04236333,\quad 4.76516825]$.
+
+
+
+
